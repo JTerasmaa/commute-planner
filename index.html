@@ -1,10 +1,74 @@
+# My Commute Planner
+
+Due to CORS restrictions on both the Digitransit and Transport Tallinn APIs, we need a small server‑side proxy. The easiest way is to deploy a **Cloudflare Worker** that forwards GraphQL queries (and/or SIRI XML) with proper CORS headers. Then our static GitHub Pages site can call that worker directly.
+
+---
+
+## 1. Cloudflare Worker (proxy.js)
+
+Create a new Worker in your Cloudflare dashboard (or via Wrangler) with this `proxy.js`:
+
+```js
+addEventListener('fetch', event => {
+  event.respondWith(handle(event.request));
+});
+
+async function handle(req) {
+  const url = new URL(req.url);
+
+  // Proxy GraphQL queries
+  if (url.pathname === '/graphql') {
+    const digitransit = 'https://api.digitransit.ee/routing/v1/routers/estonia/index/graphql';
+    // Pass through body & headers
+    const resp = await fetch(digitransit, {
+      method: req.method,
+      headers: { 'Content-Type': 'application/json' },
+      body: await req.text(),
+    });
+    const body = await resp.text();
+    return new Response(body, {
+      status: resp.status,
+      headers: {
+        'Content-Type': 'application/json',
+        'Access-Control-Allow-Origin': '*',
+      },
+    });
+  }
+
+  // Proxy SIRI XML for trams (optional)
+  if (url.pathname === '/siri') {
+    const stopid = url.searchParams.get('stopid');
+    const source = `https://transport.tallinn.ee/siri-stop-departures.php?stopid=${stopid}`;
+    const resp = await fetch(source);
+    const xml = await resp.text();
+    return new Response(xml, {
+      status: resp.status,
+      headers: {
+        'Content-Type': 'application/xml',
+        'Access-Control-Allow-Origin': '*',
+      },
+    });
+  }
+
+  return new Response('Not found', { status: 404 });
+}
+```
+
+- Publish the worker (e.g. at `https://commute-proxy.your-domain.workers.dev`).
+
+---
+
+## 2. Updated `index.html`
+
+Replace your current HTML with this, pointing to your worker:
+
+```html
 <!DOCTYPE html>
 <html lang="en">
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>My Commute Planner</title>
-  <!-- Tailwind CSS -->
   <link href="https://cdn.jsdelivr.net/npm/tailwindcss@2.2.19/dist/tailwind.min.css" rel="stylesheet" />
 </head>
 <body class="bg-gray-100">
@@ -31,62 +95,69 @@
   </div>
 
   <script>
-    // JSONP loader for peatus.ee API
-    const API_BASE = 'https://peatus.ee/api/departures';
-    const NOW = Date.now();
-    const WINDOW_MS = 2 * 3600 * 1000; // two hours
+    const PROXY = 'https://commute-proxy.your-domain.workers.dev';
+    const NOW_SEC = () => Math.floor(Date.now() / 1000);
+    const WINDOW_SEC = 2 * 3600;
 
-    function loadJSONP(stop, mode, callbackName) {
-      window[callbackName] = data => {
-        try {
-          const times = (data || [])
-            .map(item => item.time)
-            .filter(t => {
-              const [h, m] = t.split(':').map(Number);
-              const dt = new Date(NOW);
-              dt.setHours(h, m, 0, 0);
-              return dt.getTime() >= NOW && dt.getTime() <= NOW + WINDOW_MS;
-            });
-          window[callbackName + 'Handler'](times);
-        } catch (e) {
-          document.getElementById('error').textContent = e.message;
-        }
-        document.body.removeChild(script);
-        delete window[callbackName];
-      };
-      const script = document.createElement('script');
-      script.src = `${API_BASE}?stop=${encodeURIComponent(stop)}&mode=${mode}&callback=${callbackName}`;
-      script.onerror = () => {
-        document.getElementById('error').textContent = 'Failed to load ' + stop;
-        document.body.removeChild(script);
-        delete window[callbackName];
-      };
-      document.body.appendChild(script);
+    async function fetchGraphQL(query, vars) {
+      const resp = await fetch(PROXY + '/graphql', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ query, variables: vars }),
+      });
+      return resp.json();
+    }
+
+    async function fetchStopId(name) {
+      const query = `query($n:String!){ stops(name:$n){ gtfsId } }`;
+      const { data } = await fetchGraphQL(query, { n: name });
+      const s = data.stops[0];
+      if (!s) throw new Error('Stop not found: ' + name);
+      return s.gtfsId;
+    }
+
+    async function fetchDepartures(id, filter) {
+      const now = NOW_SEC();
+      const q = `query($id:String!,$from:Int!){ stop(id:$id){ stoptimesWithoutPatterns(startTime:$from){ serviceDay realtimeDeparture scheduledDeparture trip{ route{ shortName } } } } }`;
+      const { data } = await fetchGraphQL(q, { id, from: now });
+      return data.stop.stoptimesWithoutPatterns
+        .filter(ev=>{
+          const route = ev.trip.route.shortName;
+          return (!filter||route===filter)
+            && ev.serviceDay+ (ev.realtimeDeparture||ev.scheduledDeparture) <= now+WINDOW_SEC;
+        })
+        .map(ev=> new Date((ev.serviceDay+(ev.realtimeDeparture||ev.scheduledDeparture))*1000)
+          .toLocaleTimeString('et-EE',{hour:'2-digit',minute:'2-digit'}));
     }
 
     function fillList(id, arr) {
       const ul = document.getElementById(id);
       ul.innerHTML = '';
       if (!arr.length) ul.innerHTML = '<li class="text-gray-500">No upcoming departures</li>';
-      else arr.forEach(t => ul.insertAdjacentHTML('beforeend', `<li>${t}</li>`));
+      else arr.forEach(t=> ul.insertAdjacentHTML('beforeend', `<li>${t}</li>`));
     }
 
-    // Handlers for each stop
-    window['cbNommeHandler'] = times => fillList('nomme-list', times);
-    window['cbBaltiTrainHandler'] = times => fillList('balti-list', times);
-    window['cbBaltiTramHandler'] = times => fillList('tram-balti-list', times);
-    window['cbUniHandler'] = times => fillList('tram-uni-list', times);
-
-    document.addEventListener('DOMContentLoaded', () => {
+    document.addEventListener('DOMContentLoaded', async ()=>{
       try {
-        loadJSONP('Nõmme', 'train', 'cbNomme');
-        loadJSONP('Balti jaam', 'train', 'cbBaltiTrain');
-        loadJSONP('Balti jaam', 'tram', 'cbBaltiTram');
-        loadJSONP('Tallinna Ülikool', 'tram', 'cbUni');
-        document.getElementById('status').textContent = '';
-      } catch (e) {
+        const [nId, bId, uId] = await Promise.all([
+          fetchStopId('Nõmme'),
+          fetchStopId('Balti jaam'),
+          fetchStopId('Tallinna Ülikool')
+        ]);
+        const [t1,t2,tram1,tram2] = await Promise.all([
+          fetchDepartures(nId),
+          fetchDepartures(bId),
+          fetchDepartures(bId,'1'),
+          fetchDepartures(uId,'1')
+        ]);
+        fillList('nomme-list',t1);
+        fillList('balti-list',t2);
+        fillList('tram-balti-list',tram1);
+        fillList('tram-uni-list',tram2);
+        document.getElementById('status').textContent='';
+      } catch(e) {
         document.getElementById('error').textContent = e.message;
-        document.getElementById('status').textContent = '';
+        document.getElementById('status').textContent='';
       }
     });
   </script>
