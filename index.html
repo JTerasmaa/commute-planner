@@ -1,60 +1,87 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Next Elron Trains from Tallinn</title>
-  <link href="https://cdn.jsdelivr.net/npm/tailwindcss@2.2.19/dist/tailwind.min.css" rel="stylesheet">
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Stop Departures (JSONP Demo)</title>
+  <link href="https://cdn.jsdelivr.net/npm/tailwindcss@2.2.19/dist/tailwind.min.css" rel="stylesheet" />
 </head>
 <body class="bg-gray-100">
-  <div class="max-w-md mx-auto p-6">
-    <h1 class="text-3xl font-bold mb-4">Next Elron Trains from Tallinn</h1>
-    <p id="status" class="text-gray-600 mb-4">Loading departures (next 2h)…</p>
-    <div id="error" class="text-red-500 mb-4"></div>
-    <ul id="train-list" class="list-disc list-inside bg-white p-4 rounded shadow"></ul>
+  <div class="max-w-lg mx-auto p-6">
+    <h1 class="text-3xl font-bold mb-4">Departure Times by Stop</h1>
+    <div class="mb-4">
+      <label class="block mb-1 font-medium" for="stop-input">Stop name (exact):</label>
+      <input id="stop-input" class="w-full p-2 border rounded" value="Nõmme" />
+    </div>
+    <div class="mb-4">
+      <label class="block mb-1 font-medium" for="mode-select">Mode:</label>
+      <select id="mode-select" class="w-full p-2 border rounded">
+        <option value="train">Train</option>
+        <option value="tram">Tram</option>
+      </select>
+    </div>
+    <button id="load-btn" class="bg-blue-500 text-white px-4 py-2 rounded">Load Departures</button>
+    <p id="status" class="mt-4 text-gray-600"></p>
+    <div id="error" class="text-red-500 mt-2"></div>
+    <ul id="departures-list" class="list-disc list-inside bg-white p-4 rounded shadow mt-4"></ul>
   </div>
 
   <script>
-    const API_URL = 'https://web.peatus.ee/reitti/Tallinn%2C%20Tallinna%20linn%2C%20P%C3%B5hja-Tallinn%3A%3A59.440498%2C24.736954/N%C3%B5mme%2C%20Tallinna%20linn%2C%20N%C3%B5mme%3A%3A59.387452%2C24.686731?time=' + Math.floor(Date.now()/1000);
-    const PROXY = 'https://api.allorigins.win/raw?url=';
+    const API_BASE = 'https://peatus.ee/api/departures';
     const WINDOW_MS = 2 * 3600 * 1000;
-    const NOW = Date.now();
 
-    async function fetchAndParse() {
+    function loadJSONP(stop, mode, callbackName) {
+      return new Promise((resolve, reject) => {
+        window[callbackName] = data => {
+          cleanup();
+          if (!Array.isArray(data)) return reject(new Error('Invalid JSONP payload'));
+          resolve(data);
+        };
+        const script = document.createElement('script');
+        script.src = `${API_BASE}?stop=${encodeURIComponent(stop)}&mode=${mode}&callback=${callbackName}`;
+        script.onerror = () => { cleanup(); reject(new Error('Network error loading JSONP')); };
+        function cleanup() {
+          delete window[callbackName];
+          document.body.removeChild(script);
+        }
+        document.body.appendChild(script);
+      });
+    }
+
+    function displayDepartures(data) {
+      const now = Date.now();
+      const listEl = document.getElementById('departures-list');
+      listEl.innerHTML = '';
+      const times = data.map(item => item.time).filter(t => {
+        const [h,m] = t.split(':').map(Number);
+        const dt = new Date(now);
+        dt.setHours(h, m, 0, 0);
+        return dt >= now && dt <= now + WINDOW_MS;
+      });
+      [...new Set(times)].forEach(t => {
+        const li = document.createElement('li'); li.textContent = t; listEl.appendChild(li);
+      });
+      if (!listEl.children.length) {
+        const li = document.createElement('li'); li.textContent = 'No upcoming departures'; li.className='text-gray-500'; listEl.appendChild(li);
+      }
+    }
+
+    document.getElementById('load-btn').addEventListener('click', async () => {
+      const stop = document.getElementById('stop-input').value.trim();
+      const mode = document.getElementById('mode-select').value;
       const statusEl = document.getElementById('status');
       const errorEl = document.getElementById('error');
-      const listEl = document.getElementById('train-list');
+      statusEl.textContent = 'Loading...';
+      errorEl.textContent = '';
       try {
-        statusEl.textContent = 'Fetching itinerary...';
-        const resp = await fetch(PROXY + encodeURIComponent(API_URL));
-        if (!resp.ok) throw new Error('Network error ' + resp.status);
-        const html = await resp.text();
-        // Extract all HH:MM times from the HTML
-        const matches = [...html.matchAll(/(\d{2}:\d{2})/g)].map(m => m[1]);
-        // Filter to future times within next 2 hours
-        const times = matches.filter(t => {
-          const [h,m] = t.split(':').map(Number);
-          const dt = new Date(NOW);
-          dt.setHours(h, m, 0, 0);
-          return dt.getTime() >= NOW && dt.getTime() <= NOW + WINDOW_MS;
-        });
-        listEl.innerHTML = '';
-        if (times.length) {
-          // dedupe
-          [...new Set(times)].forEach(t => {
-            const li = document.createElement('li'); li.textContent = t; listEl.appendChild(li);
-          });
-        } else {
-          const li = document.createElement('li'); li.textContent = 'No upcoming departures'; li.className='text-gray-500'; listEl.appendChild(li);
-        }
+        const data = await loadJSONP(stop, mode, 'cb' + Date.now());
+        displayDepartures(data);
       } catch (e) {
         errorEl.textContent = e.message;
       } finally {
         statusEl.textContent = '';
       }
-    }
-
-    document.addEventListener('DOMContentLoaded', fetchAndParse);
+    });
   </script>
 </body>
 </html>
