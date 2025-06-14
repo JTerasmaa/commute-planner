@@ -41,43 +41,57 @@
     const WINDOW_SEC = 2 * 3600;
 
     async function fetchDepartures(stopName, filterRoute) {
-      // 1. Find stop by name
-      const queryStops = {
-        query: `query($name:String) { stops(name:$name) { gtfsId } }`,
-        variables: { name: stopName }
-      };
-      const respStops = await fetch(GRAPHQL, {
-        method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify(queryStops)
-      });
-      const { data: { stops } } = await respStops.json();
-      if (!stops.length) throw new Error(`Stop not found: ${stopName}`);
-      const gtfsId = stops[0].gtfsId;
+      try {
+        // 1. Find stop by name
+        const queryStops = {
+          query: `query($name:String) { stops(name:$name) { gtfsId } }`,
+          variables: { name: stopName }
+        };
+        const respStops = await fetch(GRAPHQL, {
+          method: 'POST',
+          mode: 'cors',
+          headers: {'Content-Type':'application/json'},
+          body: JSON.stringify(queryStops)
+        });
+        if (!respStops.ok) throw new Error(`GraphQL stops request failed: ${respStops.status}`);
+        const { data: { stops } } = await respStops.json();
+        if (!stops.length) throw new Error(`Stop not found: ${stopName}`);
+        const gtfsId = stops[0].gtfsId;
 
-      // 2. Get stoptimes
-      const now = NOW_SEC();
-      const queryDeps = {
-        query: `query($id:String!, $start:Int!) { stop(id:$id) { stoptimesWithoutPatterns(startTime:$start) { serviceDay realtimeDeparture scheduledDeparture trip { route { shortName mode } } } } }`,
-        variables: { id: gtfsId, start: now }
-      };
-      const respDeps = await fetch(GRAPHQL, {
-        method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify(queryDeps)
-      });
-      const { data: { stop } } = await respDeps.json();
-      const results = [];
-      for (const st of stop.stoptimesWithoutPatterns) {
-        const route = st.trip.route.shortName;
-        if (filterRoute && route !== filterRoute) continue;
-        const departureSec = st.serviceDay + (st.realtimeDeparture || st.scheduledDeparture);
-        if (departureSec >= now && departureSec <= now + WINDOW_SEC) {
-          const dt = new Date(departureSec * 1000);
-          results.push(dt.toLocaleTimeString('et-EE',{hour:'2-digit',minute:'2-digit'}));
+        // 2. Get stoptimes
+        const now = NOW_SEC();
+        const queryDeps = {
+          query: `query($id:String!, $start:Int!) { stop(id:$id) { stoptimesWithoutPatterns(startTime:$start) { serviceDay realtimeDeparture scheduledDeparture trip { route { shortName mode } } } } }`,
+          variables: { id: gtfsId, start: now }
+        };
+        const respDeps = await fetch(GRAPHQL, {
+          method: 'POST',
+          mode: 'cors',
+          headers: {'Content-Type':'application/json'},
+          body: JSON.stringify(queryDeps)
+        });
+        if (!respDeps.ok) throw new Error(`GraphQL departures request failed: ${respDeps.status}`);
+        const { data: { stop } } = await respDeps.json();
+        const results = [];
+        for (const st of stop.stoptimesWithoutPatterns) {
+          const route = st.trip.route.shortName;
+          if (filterRoute && route !== filterRoute) continue;
+          const departureSec = st.serviceDay + (st.realtimeDeparture || st.scheduledDeparture);
+          if (departureSec >= now && departureSec <= now + WINDOW_SEC) {
+            const dt = new Date(departureSec * 1000);
+            results.push(dt.toLocaleTimeString('et-EE',{hour:'2-digit',minute:'2-digit'}));
+          }
         }
+        return results;
+      } catch (err) {
+        console.error(err);
+        throw err;
       }
-      return results;
     }
 
     function fillList(id, items) {
       const ul = document.getElementById(id);
+      ul.innerHTML = '';
       if (items.length) {
         items.forEach(time => {
           const li = document.createElement('li');
@@ -106,7 +120,7 @@
         fillList('tram-uni-list', tramUni);
         document.getElementById('status').textContent = '';
       } catch (err) {
-        document.getElementById('error').textContent = err.message;
+        document.getElementById('error').textContent = err.message || 'Failed to load departures';
         document.getElementById('status').textContent = '';
       }
     });
