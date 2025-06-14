@@ -15,7 +15,7 @@
     <p class="text-gray-600 mb-4">Showing departures for the next 2 hours</p>
 
     <div v-if="error" class="text-red-500 mb-4">Error: {{ error }}</div>
-    <div v-if="loading" class="mb-4">Loading times...</div>
+    <div v-else-if="loading" class="mb-4">Loading times...</div>
 
     <div v-else class="grid grid-cols-1 md:grid-cols-2 gap-6">
       <!-- Train departures -->
@@ -60,59 +60,69 @@
     async function fetchDepartures(stopName, filterRoute) {
       // 1. Find stop by name
       const queryStops = {
-        query: `query($name:String) { stops(name:$name) { gtfsId name } }`,
+        query: `query($name:String) { stops(name:$name) { gtfsId } }`,
         variables: { name: stopName }
       };
       const respStops = await fetch(GRAPHQL, {
         method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify(queryStops)
       });
-      const dataStops = await respStops.json();
-      const stop = dataStops.data.stops[0];
-      if (!stop) throw new Error(`Stop not found: ${stopName}`);
+      const { data: { stops } } = await respStops.json();
+      if (!stops.length) throw new Error(`Stop not found: ${stopName}`);
+      const gtfsId = stops[0].gtfsId;
 
-      // 2. Fetch departures
+      // 2. Get stoptimes
       const now = NOW_SEC();
       const queryDeps = {
-        query: `query($id:String!,$startTime:Int!) {
-          stop(id:$id) {
-            stoptimesWithoutPatterns(startTime:$startTime) {
-              serviceDay
-              realtimeDeparture
-              scheduledDeparture
-              headsign
-              trip { route { shortName mode } }
-            }
-          }
-        }`,
-        variables: { id: stop.gtfsId, startTime: now }
+        query: `query($id:String!, $start:Int!) { stop(id:$id) { stoptimesWithoutPatterns(startTime:$start) { serviceDay realtimeDeparture scheduledDeparture trip { route { shortName mode } } } } }`,
+        variables: { id: gtfsId, start: now }
       };
       const respDeps = await fetch(GRAPHQL, {
         method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify(queryDeps)
       });
-      const dataDeps = await respDeps.json();
-      const times = [];
-      for (const st of dataDeps.data.stop.stoptimesWithoutPatterns) {
-        // filter by route if provided
-        if (filterRoute && st.trip.route.shortName !== filterRoute) continue;
-        // compute absolute timestamp
-        const ts = (st.serviceDay + (st.realtimeDeparture || st.scheduledDeparture));
-        if (ts >= now && ts <= now + WINDOW_SEC) {
-          const date = new Date(ts * 1000);
-          times.push(date.toLocaleTimeString('et-EE', {hour:'2-digit',minute:'2-digit'}));
+      const { data: { stop } } = await respDeps.json();
+      const results = [];
+      for (const st of stop.stoptimesWithoutPatterns) {
+        const route = st.trip.route.shortName;
+        if (filterRoute && route !== filterRoute) continue;
+        const departureSec = st.serviceDay + (st.realtimeDeparture || st.scheduledDeparture);
+        if (departureSec >= now && departureSec <= now + WINDOW_SEC) {
+          const dt = new Date(departureSec * 1000);
+          results.push(dt.toLocaleTimeString('et-EE',{hour:'2-digit',minute:'2-digit'}));
         }
       }
-      return times;
+      return results;
     }
 
     Vue.createApp({
-      data() { return {
-        trainsFromNomme: [],
-        trainsFromBalti: [],
-        tramsFromBalti: [],
-        tramsFromUni: [],
-        loading: true,
-        error: null,
-      }},"schedule":"{}")
+      data() {
+        return {
+          trainsFromNomme: [],
+          trainsFromBalti: [],
+          tramsFromBalti: [],
+          tramsFromUni: [],
+          loading: true,
+          error: null,
+        };
+      },
+      async mounted() {
+        try {
+          [
+            this.trainsFromNomme,
+            this.trainsFromBalti,
+            this.tramsFromBalti,
+            this.tramsFromUni
+          ] = await Promise.all([
+            fetchDepartures('Nõmme', null),
+            fetchDepartures('Balti jaam', null),
+            fetchDepartures('Balti jaam', '1'),
+            fetchDepartures('Tallinn Ülikool', '1')
+          ]);
+        } catch (err) {
+          this.error = err.message;
+        } finally {
+          this.loading = false;
+        }
+      }
     }).mount('#app');
   </script>
 </body>
