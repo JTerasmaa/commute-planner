@@ -1,36 +1,46 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8"/>
-  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>My Commute Planner</title>
-  <!-- Tailwind CSS for styling -->
-  <link href="https://cdn.jsdelivr.net/npm/tailwindcss@2.2.19/dist/tailwind.min.css" rel="stylesheet">
+  <!-- Tailwind CSS -->
+  <link href="https://cdn.jsdelivr.net/npm/tailwindcss@2.2.19/dist/tailwind.min.css" rel="stylesheet" />
 </head>
 <body class="bg-gray-100">
-  <div class="max-w-4xl mx-auto p-4">
-    <h1 class="text-3xl font-bold mb-4">My Commute Planner</h1>
+  <div class="max-w-4xl mx-auto p-6">
+    <h1 class="text-3xl font-bold mb-6">My Commute Planner</h1>
     <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
-      <!-- Train timetable embed -->
-      <div class="border p-4 rounded-lg shadow bg-white">
-        <h2 class="text-2xl font-semibold mb-2">Train Timetable</h2>
-        <p class="mb-4">Nõmme → Balti jaam</p>
-        <iframe
-          src="https://elron.ee/"
-          class="w-full h-80 border rounded"
-          allowfullscreen
-        ></iframe>
+      <!-- Train schedule link -->
+      <div class="bg-white rounded-lg shadow p-6 flex flex-col justify-between">
+        <div>
+          <h2 class="text-2xl font-semibold mb-2">Train: Nõmme → Balti jaam</h2>
+          <p class="text-gray-600 mb-4">View upcoming departures for the next 2 hours.</p>
+        </div>
+        <a
+          href="https://elron.ee/en/trains?from=Nom%C3%A4nne&to=Balti-jaam"
+          target="_blank"
+          rel="noopener"
+          class="mt-4 inline-block text-center bg-blue-600 text-white font-medium py-2 px-4 rounded hover:bg-blue-700"
+        >
+          Open Elron Timetable
+        </a>
       </div>
 
-      <!-- Tram timetable embed -->
-      <div class="border p-4 rounded-lg shadow bg-white">
-        <h2 class="text-2xl font-semibold mb-2">Tram Timetable</h2>
-        <p class="mb-4">Balti jaam → Tallinn Ülikool</p>
-        <iframe
-          src="https://transport.tallinn.ee/#tram"
-          class="w-full h-80 border rounded"
-          allowfullscreen
-        ></iframe>
+      <!-- Tram schedule link -->
+      <div class="bg-white rounded-lg shadow p-6 flex flex-col justify-between">
+        <div>
+          <h2 class="text-2xl font-semibold mb-2">Tram: Balti jaam → Tallinn Ülikool</h2>
+          <p class="text-gray-600 mb-4">View upcoming departures for the next 2 hours.</p>
+        </div>
+        <a
+          href="https://transport.tallinn.ee/?dep=Balti%20jaam&arr=Tallinn%20%C3%9Clikool&mode=tram"
+          target="_blank"
+          rel="noopener"
+          class="mt-4 inline-block text-center bg-green-600 text-white font-medium py-2 px-4 rounded hover:bg-green-700"
+        >
+          Open Tram Planner
+        </a>
       </div>
     </div>
   </div>
