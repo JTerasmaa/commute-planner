@@ -37,24 +37,41 @@
 
   <script>
     // GraphQL endpoint for Estonia
-    const GRAPHQL_URL = 'https://api.digitransit.fi/routing/v1/routers/estonia/index/graphql';
+    const GRAPHQL_URL = 'https://api.digitransit.ee/routing/v1/routers/estonia/index/graphql';
     const NOW_SEC = () => Math.floor(Date.now() / 1000);
     const WINDOW_SEC = 2 * 3600;
 
     const setStatus = text => document.getElementById('status').textContent = text;
     const setError = text => document.getElementById('error').textContent = text;
 
-    // Fetch GTFS stop ID by exact name
+    // Utility to remove diacritics
+    function normalizeName(name) {
+      return name.normalize('NFD').replace(/\p{Diacritic}/gu, '');
+    }
+
+    // Fetch GTFS stop ID by name, with fallback stripping diacritics
     async function fetchStopId(name) {
       setStatus(`Resolving stop ID for “${name}”…`);
       const query = `query($name:String!) { stops(name:$name) { gtfsId name } }`;
-      const resp = await fetch(GRAPHQL_URL, {
+      // Try original
+      let resp = await fetch(GRAPHQL_URL, {
         method: 'POST', headers: {'Content-Type':'application/json'},
         body: JSON.stringify({ query, variables: { name } })
       });
-      const { data } = await resp.json();
-      const stops = data.stops;
-      if (!stops || !stops.length) throw new Error(`Stop not found: ${name}`);
+      let json = await resp.json();
+      let stops = json.data?.stops || [];
+      // Fallback without diacritics
+      if (!stops.length) {
+        const alt = normalizeName(name);
+        setStatus(`Retrying for “${alt}”…`);
+        resp = await fetch(GRAPHQL_URL, {
+          method: 'POST', headers: {'Content-Type':'application/json'},
+          body: JSON.stringify({ query, variables: { name: alt } })
+        });
+        json = await resp.json();
+        stops = json.data?.stops || [];
+      }
+      if (!stops.length) throw new Error(`Stop not found: ${name}`);
       const id = stops[0].gtfsId;
       console.log(`Stop ${name} → ${id}`);
       return id;
@@ -64,10 +81,10 @@
     async function fetchDepartures(stopId, routeFilter=null) {
       setStatus('Fetching departures…');
       const now = NOW_SEC();
-      const query = `query($id:String!,$start:Int!){ stop(id:$id){ stoptimesWithoutPatterns(startTime:$start){ serviceDay realtimeDeparture scheduledDeparture trip{ route{ shortName } } } } }`;
+      const query = `query($id:String!,$startTime:Int!){ stop(id:$id){ stoptimesWithoutPatterns(startTime:$startTime){ serviceDay realtimeDeparture scheduledDeparture trip{ route{ shortName } } } } }`;
       const resp = await fetch(GRAPHQL_URL, {
         method: 'POST', headers: {'Content-Type':'application/json'},
-        body: JSON.stringify({ query, variables: { id: stopId, start: now } })
+        body: JSON.stringify({ query, variables: { id: stopId, startTime: now } })
       });
       const { data } = await resp.json();
       const events = data.stop.stoptimesWithoutPatterns;
@@ -94,9 +111,9 @@
     document.addEventListener('DOMContentLoaded', async () => {
       try {
         const [nommeId, baltiId, uniId] = await Promise.all([
-          fetchStopId('Nõmme'),
+          fetchStopId('Nomme'),
           fetchStopId('Balti jaam'),
-          fetchStopId('Tallinna Ülikool')
+          fetchStopId('Tallinna Ulikool')
         ]);
         const [t1, t2, tram1, tram2] = await Promise.all([
           fetchDepartures(nommeId),
