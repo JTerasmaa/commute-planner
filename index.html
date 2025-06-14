@@ -11,129 +11,148 @@
 </head>
 <body class="bg-gray-100">
   <div id="app" class="max-w-4xl mx-auto p-6">
-    <h1 class="text-3xl font-bold mb-6">My Commute Planner</h1>
-    <p class="text-gray-600 mb-4">Next 2 hours from now</p>
+    <h1 class="text-3xl font-bold mb-4">My Commute Planner</h1>
+    <p class="text-gray-600 mb-4">Showing departures for the next 2 hours</p>
+
     <div v-if="error" class="text-red-500 mb-4">Error: {{ error }}</div>
     <div v-if="loading" class="mb-4">Loading times...</div>
+
     <div v-else class="grid grid-cols-1 md:grid-cols-2 gap-6">
-      <!-- Train times -->
+      <!-- Train departures -->
       <div class="bg-white rounded-lg shadow p-6">
-        <h2 class="text-2xl font-semibold mb-2">Trains</h2>
-        <h3 class="font-medium">Nõmme → Balti jaam</h3>
+        <h2 class="text-2xl font-semibold mb-2">Elron Trains</h2>
+        <h3 class="font-medium">From Nõmme</h3>
         <ul class="list-disc list-inside mb-4">
-          <li v-for="t in trainsToBalti" :key="t.departure">
-            {{ format(t.departure) }} → {{ format(t.arrival) }}
+          <li v-for="t in trainsFromNomme" :key="t">
+            {{ t }}
           </li>
-          <li v-if="!trainsToBalti.length" class="text-gray-500">No upcoming departures</li>
+          <li v-if="!trainsFromNomme.length" class="text-gray-500">No departures</li>
         </ul>
-        <h3 class="font-medium">Balti jaam → Nõmme</h3>
+
+        <h3 class="font-medium">From Balti jaam</h3>
         <ul class="list-disc list-inside">
-          <li v-for="t in trainsToNomme" :key="t.departure">
-            {{ format(t.departure) }} → {{ format(t.arrival) }}
+          <li v-for="t in trainsFromBalti" :key="t">
+            {{ t }}
           </li>
-          <li v-if="!trainsToNomme.length" class="text-gray-500">No upcoming departures</li>
+          <li v-if="!trainsFromBalti.length" class="text-gray-500">No departures</li>
         </ul>
       </div>
-      <!-- Tram times -->
+
+      <!-- Tram departures -->
       <div class="bg-white rounded-lg shadow p-6">
         <h2 class="text-2xl font-semibold mb-2">Tram #1</h2>
-        <h3 class="font-medium">Balti jaam → Ülikool</h3>
+        <h3 class="font-medium">From Balti jaam</h3>
         <ul class="list-disc list-inside mb-4">
-          <li v-for="t in tramsToUni" :key="t.departure_time">
-            {{ format(t.departure_time) }} → {{ format(t.arrival_time) }}
+          <li v-for="t in tramsFromBalti" :key="t">
+            {{ t }}
           </li>
-          <li v-if="!tramsToUni.length" class="text-gray-500">No upcoming departures</li>
+          <li v-if="!tramsFromBalti.length" class="text-gray-500">No departures</li>
         </ul>
-        <h3 class="font-medium">Ülikool → Balti jaam</h3>
+
+        <h3 class="font-medium">From Tallinn Ülikool</h3>
         <ul class="list-disc list-inside">
-          <li v-for="t in tramsToBalti" :key="t.departure_time">
-            {{ format(t.departure_time) }} → {{ format(t.arrival_time) }}
+          <li v-for="t in tramsFromUni" :key="t">
+            {{ t }}
           </li>
-          <li v-if="!tramsToBalti.length" class="text-gray-500">No upcoming departures</li>
+          <li v-if="!tramsFromUni.length" class="text-gray-500">No departures</li>
         </ul>
       </div>
     </div>
   </div>
 
   <script>
-    // CORS proxy for the APIs
     const CORS = url => `https://api.allorigins.win/raw?url=${encodeURIComponent(url)}`;
-
-    // URLs
-    const ELRON_RT_URL = 'https://elron.ee/map_data.json';
+    // Elron stop departures API
+    const ELRON_API = 'https://api1.elron.ee/index.php/soiduplaan/peatus/';
+    // Tallinn tram SIRI API
     const TRAM_STOPS_URL = 'https://transport.tallinn.ee/gps.txt';
-    const SIRI_URL = 'https://transport.tallinn.ee/siri-stop-departures.php?stopid=';
-
-    // Stop names
+    const TRAM_SIRI = 'https://transport.tallinn.ee/siri-stop-departures.php?stopid=';
+    // Station names
     const TRAIN_STOP_NOMME = 'Nõmme';
     const TRAIN_STOP_BALTI = 'Balti jaam';
-    const TRAM_NAME = 'Tramm 1';
     const TRAM_STOP_BALTI_NAME = 'Balti jaam';
     const TRAM_STOP_UNI_NAME = 'Tallinn Ülikool';
 
     Vue.createApp({
       data() {
         return {
-          trainsToBalti: [],
-          trainsToNomme: [],
-          tramsToUni: [],
-          tramsToBalti: [],
+          trainsFromNomme: [],
+          trainsFromBalti: [],
+          tramsFromBalti: [],
+          tramsFromUni: [],
           loading: true,
           error: null,
         };
       },
       methods: {
-        format(dt) {
-          return new Date(dt).toLocaleTimeString('et-EE', { hour: '2-digit', minute: '2-digit' });
+        formatTimeHHMM(timeStr) {
+          // timeStr from API: "HH:MM"
+          return timeStr;
         },
-        async fetchTrains() {
-          const resp = await fetch(CORS(ELRON_RT_URL));
-          const vehicles = await resp.json();
-          // Filter next 2h
-          const now = Date.now(), twoH = now + 2 * 3600 * 1000;
-          const toBalti = [], toNomme = [];
-          vehicles.forEach(v => {
-            if (v.next_stop === TRAIN_STOP_BALTI && v.from === TRAIN_STOP_NOMME && v.eta * 1000 <= twoH) toBalti.push(v);
-            if (v.next_stop === TRAIN_STOP_NOMME && v.from === TRAIN_STOP_BALTI && v.eta * 1000 <= twoH) toNomme.push(v);
-          });
-          toBalti.sort((a,b)=>a.eta-b.eta);
-          toNomme.sort((a,b)=>a.eta-b.eta);
-          this.trainsToBalti = toBalti.map(v=>({departure:new Date(v.fordeparture),arrival:new Date(v.forarrival)}));
-          this.trainsToNomme = toNomme.map(v=>({departure:new Date(v.baldeparture),arrival:new Date(v.balarrival)}));
+        async fetchTrainDepartures(stopName) {
+          const url = `${ELRON_API}${encodeURIComponent(stopName)}`;
+          const resp = await fetch(CORS(url));
+          const json = await resp.json();
+          if (json.status !== 1 || !Array.isArray(json.data)) {
+            throw new Error(`No data for train stop: ${stopName}`);
+          }
+          // json.data = [{peatus, plaaniline_aeg, tegelik_aeg}, ...]
+          const now = new Date();
+          const cutoff = now.getTime() + 2 * 3600 * 1000;
+          return json.data
+            .map(item => item.tegelik_aeg || item.plaaniline_aeg)
+            .map(t => {
+              const [hh, mm] = t.split(':').map(Number);
+              const dt = new Date(now);
+              dt.setHours(hh, mm, 0, 0);
+              // if time has passed today, skip
+              return dt;
+            })
+            .filter(dt => dt.getTime() >= now.getTime() && dt.getTime() <= cutoff)
+            .map(dt => this.formatTimeHHMM(dt.toLocaleTimeString('et-EE', {hour:'2-digit',minute:'2-digit'})));
         },
         async fetchTramStops() {
           const res = await fetch(CORS(TRAM_STOPS_URL));
           const txt = await res.text();
           return txt.trim().split('\n').map(line => {
-            const [id,name] = line.split(',');
-            return { id: id.trim(), name: name.trim() };
+            const [id,name] = line.split(','); return {id: id.trim(), name: name.trim()};
           });
         },
-        async fetchTrams() {
+        async fetchTramDepartures(stopName) {
           const stops = await this.fetchTramStops();
-          const balti = stops.find(s=>s.name === TRAM_STOP_BALTI_NAME);
-          const uni = stops.find(s=>s.name === TRAM_STOP_UNI_NAME);
-          if(!balti||!uni) throw new Error('Tram stops not found');
-          const [bxml,uxml] = await Promise.all([
-            fetch(CORS(SIRI_URL+balti.id)).then(r=>r.text()),
-            fetch(CORS(SIRI_URL+uni.id)).then(r=>r.text())
-          ]);
-          const parseSiri = xml=>{
-            const doc = new DOMParser().parseFromString(xml,'application/xml');
-            return Array.from(doc.querySelectorAll('StopEvent')).map(ev=>( {
-              departure_time: ev.querySelector('ExpectedDepartureTime')?.textContent,
-              arrival_time: ev.querySelector('ExpectedArrivalTime')?.textContent
-            }));
-          };
-          this.tramsToUni = parseSiri(bxml).slice(0,10);
-          this.tramsToBalti = parseSiri(uxml).slice(0,10);
+          const stop = stops.find(s => s.name === stopName);
+          if (!stop) throw new Error(`Tram stop not found: ${stopName}`);
+          const xmlText = await fetch(CORS(`${TRAM_SIRI}${stop.id}`)).then(r=>r.text());
+          const doc = new DOMParser().parseFromString(xmlText,'application/xml');
+          const now = new Date().getTime();
+          const cutoff = now + 2 * 3600 * 1000;
+          return Array.from(doc.querySelectorAll('StopEvent')).map(ev => {
+            const t = ev.querySelector('ExpectedDepartureTime')?.textContent;
+            const dt = new Date(t).getTime();
+            return {dt, str: new Date(t).toLocaleTimeString('et-EE',{hour:'2-digit',minute:'2-digit'})};
+          })
+          .filter(o=>o.dt>=now && o.dt<=cutoff)
+          .map(o=>o.str);
         }
       },
       async mounted() {
         try {
-          await Promise.all([this.fetchTrains(),this.fetchTrams()]);
-        } catch(e) { this.error = e.message }
-        finally { this.loading=false }
+          [
+            this.trainsFromNomme,
+            this.trainsFromBalti,
+            this.tramsFromBalti,
+            this.tramsFromUni
+          ] = await Promise.all([
+            this.fetchTrainDepartures(TRAIN_STOP_NOMME),
+            this.fetchTrainDepartures(TRAIN_STOP_BALTI),
+            this.fetchTramDepartures(TRAM_STOP_BALTI_NAME),
+            this.fetchTramDepartures(TRAM_STOP_UNI_NAME)
+          ]);
+        } catch (e) {
+          this.error = e.message;
+        } finally {
+          this.loading = false;
+        }
       }
     }).mount('#app');
   </script>
