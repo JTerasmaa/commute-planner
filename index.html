@@ -2,61 +2,35 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>My Commute Planner</title>
-  <!-- Tailwind CSS -->
-  <link href="https://cdn.jsdelivr.net/npm/tailwindcss@2.2.19/dist/tailwind.min.css" rel="stylesheet" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Trains from Tallinn</title>
+  <link href="https://cdn.jsdelivr.net/npm/tailwindcss@2.2.19/dist/tailwind.min.css" rel="stylesheet"/>
 </head>
 <body class="bg-gray-100">
-  <div class="max-w-4xl mx-auto p-6">
-    <h1 class="text-3xl font-bold mb-4">My Commute Planner</h1>
-    <p id="status" class="text-gray-600 mb-4">Loading departures...</p>
+  <div class="max-w-md mx-auto p-6">
+    <h1 class="text-3xl font-bold mb-4">Upcoming Elron Trains from Tallinn</h1>
+    <p id="status" class="text-gray-600 mb-4">Loading departures for the next 2 hours…</p>
     <div id="error" class="text-red-500 mb-4"></div>
-    <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
-      <!-- Train departures -->
-      <div class="bg-white shadow rounded p-6">
-        <h2 class="text-2xl mb-2">Elron Trains</h2>
-        <h3 class="font-medium">From Nõmme</h3>
-        <ul id="nomme-train" class="list-disc list-inside mb-4"></ul>
-        <h3 class="font-medium">From Balti jaam (train station)</h3>
-        <ul id="balti-train" class="list-disc list-inside"></ul>
-      </div>
-      <!-- Tram departures -->
-      <div class="bg-white shadow rounded p-6">
-        <h2 class="text-2xl mb-2">Tram #1</h2>
-        <h3 class="font-medium">From Balti jaam (tram stop)</h3>
-        <ul id="balti-tram" class="list-disc list-inside mb-4"></ul>
-        <h3 class="font-medium">From Tallinna Ülikool</h3>
-        <ul id="uni-tram" class="list-disc list-inside"></ul>
-      </div>
-    </div>
+    <ul id="train-list" class="list-disc list-inside bg-white p-6 rounded shadow"></ul>
   </div>
 
   <script>
-    // Peatus API JSONP
     const API = 'https://peatus.ee/api/departures';
+    const STOP = 'Tallinn';
     const NOW = Date.now();
-    const WINDOW_MS = 2 * 3600 * 1000; // 2 hours
+    const WINDOW_MS = 2 * 3600 * 1000; // two hours
 
-    /**
-     * Load JSONP for given stop/mode and populate listId
-     * @param {string} stop - stop name
-     * @param {string} mode - 'train' or 'tram'
-     * @param {string} cbName - global callback name
-     * @param {string} listId - ID of UL element to fill
-     */
-    function loadJSONP(stop, mode, cbName, listId) {
-      // Define callback
+    function loadJSONP(stop, mode, cbName) {
       window[cbName] = data => {
-        const output = document.getElementById(listId);
-        output.innerHTML = '';
+        const list = document.getElementById('train-list');
+        list.innerHTML = '';
         if (!Array.isArray(data)) {
-          document.getElementById('error').textContent = `Invalid data for ${stop}`;
+          document.getElementById('error').textContent = 'Invalid data received';
         } else {
           const times = data
             .map(item => item.time)
             .filter(t => {
-              const [h, m] = t.split(':').map(Number);
+              const [h,m] = t.split(':').map(Number);
               const dt = new Date(NOW);
               dt.setHours(h, m, 0, 0);
               return dt.getTime() >= NOW && dt.getTime() <= NOW + WINDOW_MS;
@@ -65,35 +39,30 @@
             times.forEach(t => {
               const li = document.createElement('li');
               li.textContent = t;
-              output.appendChild(li);
+              list.appendChild(li);
             });
           } else {
             const li = document.createElement('li');
             li.textContent = 'No upcoming departures';
-            li.className = 'text-gray-500';
-            output.appendChild(li);
+            list.appendChild(li);
           }
         }
         document.getElementById('status').textContent = '';
-        // Clean up
         delete window[cbName];
-        document.body.removeChild(script);
+        script.remove();
       };
       const script = document.createElement('script');
       script.src = `${API}?stop=${encodeURIComponent(stop)}&mode=${mode}&callback=${cbName}`;
       script.onerror = () => {
-        document.getElementById('error').textContent = `Failed to load ${stop}`;
+        document.getElementById('error').textContent = 'Failed to load departures';
         delete window[cbName];
-        document.body.removeChild(script);
+        script.remove();
       };
       document.body.appendChild(script);
     }
 
     document.addEventListener('DOMContentLoaded', () => {
-      loadJSONP('Nõmme', 'train', 'cbNomTrain', 'nomme-train');
-      loadJSONP('Balti jaam (train station)', 'train', 'cbBaltiTrain', 'balti-train');
-      loadJSONP('Balti jaam (tram stop)', 'tram', 'cbBaltiTram', 'balti-tram');
-      loadJSONP('Tallinna Ülikool', 'tram', 'cbUniTram', 'uni-tram');
+      loadJSONP(STOP, 'train', 'cbTrain');
     });
   </script>
 </body>
