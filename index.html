@@ -10,7 +10,7 @@
 <body class="bg-gray-100">
   <div class="max-w-4xl mx-auto p-6">
     <h1 class="text-3xl font-bold mb-4">My Commute Planner</h1>
-    <p id="status" class="text-gray-600 mb-4">Loading departures for the next 2 hours...</p>
+    <p id="status" class="text-gray-600 mb-4">Initializing…</p>
     <div id="error" class="text-red-500 mb-4"></div>
     <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
       <!-- Train departures -->
@@ -36,65 +36,91 @@
   </div>
 
   <script>
-    const BASE = 'https://peatus.ee/api/departures';
-    const PROXY = 'https://api.allorigins.win/raw?url=';
-    const NOW = new Date();
-    const WINDOW = 2 * 3600 * 1000;
+    // Step 1: Define GraphQL endpoint
+    const GRAPHQL_URL = 'https://api.digitransit.ee/routing/v1/routers/estonia/index/graphql';
+    const NOW_SEC = () => Math.floor(Date.now() / 1000);
+    const WINDOW_SEC = 2 * 3600;
 
-    async function fetchPeatus(stopName, type) {
-      try {
-        const url = `${BASE}?stop=${encodeURIComponent(stopName)}&mode=${type}`;
-        const res = await fetch(PROXY + encodeURIComponent(url));
-        if (!res.ok) throw new Error(`Peatus API error: ${res.status}`);
-        const data = await res.json();
-        if (!Array.isArray(data)) throw new Error('Invalid Peatus response');
-        return data
-          .map(item => item.time)
-          .filter(t => {
-            const [hh, mm] = t.split(':').map(Number);
-            const dt = new Date(NOW);
-            dt.setHours(hh, mm, 0, 0);
-            return dt >= NOW && dt - NOW <= WINDOW;
-          });
-      } catch (err) {
-        console.error(err);
-        throw err;
-      }
+    // Utility to update status
+    const setStatus = text => document.getElementById('status').textContent = text;
+    const setError = text => document.getElementById('error').textContent = text;
+
+    // Step 2: Fetch GTFS stop ID by name
+    async function fetchStopId(name) {
+      console.log('Fetching stop ID for', name);
+      const query = `query($name:String!) { stops(name:$name) { gtfsId name } }`;
+      const resp = await fetch(GRAPHQL_URL, {
+        method: 'POST', headers: {'Content-Type':'application/json'},
+        body: JSON.stringify({ query, variables: { name } })
+      });
+      const json = await resp.json();
+      const stops = json.data?.stops || [];
+      if (!stops.length) throw new Error(`Stop not found: ${name}`);
+      console.log('Stop ID for', name, 'is', stops[0].gtfsId);
+      return stops[0].gtfsId;
     }
 
+    // Step 3: Fetch departures for stop ID, optional route filter
+    async function fetchDeparturesById(stopId, routeFilter=null) {
+      console.log('Fetching departures for', stopId, 'filter', routeFilter);
+      const now = NOW_SEC();
+      const query = `query($id:String!,$startTime:Int!){ stop(id:$id){ stoptimesWithoutPatterns(startTime:$startTime){ serviceDay realtimeDeparture scheduledDeparture trip{ route{ shortName } } } } }`;
+      const resp = await fetch(GRAPHQL_URL, {
+        method: 'POST', headers: {'Content-Type':'application/json'},
+        body: JSON.stringify({ query, variables: { id: stopId, startTime: now } })
+      });
+      const json = await resp.json();
+      const events = json.data?.stop?.stoptimesWithoutPatterns || [];
+      const times = [];
+      for (const ev of events) {
+        const route = ev.trip.route.shortName;
+        if (routeFilter && route !== routeFilter) continue;
+        const departureSec = ev.serviceDay + (ev.realtimeDeparture || ev.scheduledDeparture);
+        if (departureSec >= now && departureSec <= now + WINDOW_SEC) {
+          const dt = new Date(departureSec * 1000);
+          times.push(dt.toLocaleTimeString('et-EE',{hour:'2-digit',minute:'2-digit'}));
+        }
+      }
+      console.log('Departures for', stopId, times);
+      return times;
+    }
+
+    // Fill UL list
     function fillList(id, items) {
       const ul = document.getElementById(id);
       ul.innerHTML = '';
-      if (items.length) {
-        items.forEach(time => {
-          const li = document.createElement('li');
-          li.textContent = time;
-          ul.appendChild(li);
-        });
-      } else {
-        const li = document.createElement('li');
-        li.textContent = 'No upcoming departures';
-        li.className = 'text-gray-500';
-        ul.appendChild(li);
-      }
+      if (!items.length) ul.innerHTML = '<li class="text-gray-500">No upcoming departures</li>';
+      else items.forEach(t=> ul.insertAdjacentHTML('beforeend', `<li>${t}</li>`));
     }
 
-    document.addEventListener('DOMContentLoaded', async () => {
+    // Step-by-step execution
+    document.addEventListener('DOMContentLoaded', async ()=>{
       try {
-        const [nomme, baltiTrain, baltiTram, uniTram] = await Promise.all([
-          fetchPeatus('Nõmme', 'train'),
-          fetchPeatus('Balti jaam', 'train'),
-          fetchPeatus('Balti jaam', 'tram'),
-          fetchPeatus('Tallinn Ülikool', 'tram')
+        setStatus('Resolving stop IDs...');
+        const [nommeId, baltiId, uniId] = await Promise.all([
+          fetchStopId('Nõmme'),
+          fetchStopId('Balti jaam'),
+          fetchStopId('Tallinn Ülikool')
         ]);
-        fillList('nomme-list', nomme);
-        fillList('balti-list', baltiTrain);
-        fillList('tram-balti-list', baltiTram);
-        fillList('tram-uni-list', uniTram);
-        document.getElementById('status').textContent = '';
+
+        setStatus('Fetching departures...');
+        const [nommeTimes, baltiTrainTimes, baltiTramTimes, uniTramTimes] = await Promise.all([
+          fetchDeparturesById(nommeId),
+          fetchDeparturesById(baltiId),
+          fetchDeparturesById(baltiId, '1'),
+          fetchDeparturesById(uniId, '1')
+        ]);
+
+        fillList('nomme-list', nommeTimes);
+        fillList('balti-list', baltiTrainTimes);
+        fillList('tram-balti-list', baltiTramTimes);
+        fillList('tram-uni-list', uniTramTimes);
+
+        setStatus('');
       } catch (err) {
-        document.getElementById('error').textContent = err.message || 'Failed to fetch';
-        document.getElementById('status').textContent = '';
+        console.error(err);
+        setError(err.message);
+        setStatus('');
       }
     });
   </script>
