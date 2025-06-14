@@ -36,57 +36,32 @@
   </div>
 
   <script>
-    const GRAPHQL = 'https://api.digitransit.ee/routing/v1/routers/estonia/index/graphql';
-    const NOW_SEC = () => Math.floor(Date.now() / 1000);
-    const WINDOW_SEC = 2 * 3600;
+    // Using peatus.ee REST API for schedules
+    const BASE = 'https://peatus.ee/api';
+    const NOW = new Date();
+    const WINDOW = 2 * 3600 * 1000; // 2 hours in ms
 
-    async function fetchDepartures(stopName, filterRoute) {
-      try {
-        // 1. Find stop by name
-        const queryStops = {
-          query: `query($name:String) { stops(name:$name) { gtfsId } }`,
-          variables: { name: stopName }
-        };
-        const respStops = await fetch(GRAPHQL, {
-          method: 'POST',
-          mode: 'cors',
-          headers: {'Content-Type':'application/json'},
-          body: JSON.stringify(queryStops)
+    /**
+     * Fetch departures from peatus.ee for a given stop and transport type
+     * @param {string} stopName - human-readable stop name (e.g. "Nõmme")
+     * @param {'train'|'tram'} type
+     * @returns {Promise<string[]>} array of "HH:MM" strings
+     */
+    async function fetchPeatus(stopName, type) {
+      // Encode stop and type for query
+      const url = `${BASE}/departures?stop=${encodeURIComponent(stopName)}&mode=${type}`;
+      const resp = await fetch(url);
+      if (!resp.ok) throw new Error(`${type} API error: ${resp.status}`);
+      const data = await resp.json();
+      // data expected: [{ time: "HH:MM" , direction: "..." }, ...]
+      return data
+        .map(item => item.time)
+        .filter(t => {
+          const [hh, mm] = t.split(':').map(Number);
+          const dt = new Date(NOW);
+          dt.setHours(hh, mm, 0, 0);
+          return dt >= NOW && dt - NOW <= WINDOW;
         });
-        if (!respStops.ok) throw new Error(`GraphQL stops request failed: ${respStops.status}`);
-        const { data: { stops } } = await respStops.json();
-        if (!stops.length) throw new Error(`Stop not found: ${stopName}`);
-        const gtfsId = stops[0].gtfsId;
-
-        // 2. Get stoptimes
-        const now = NOW_SEC();
-        const queryDeps = {
-          query: `query($id:String!, $start:Int!) { stop(id:$id) { stoptimesWithoutPatterns(startTime:$start) { serviceDay realtimeDeparture scheduledDeparture trip { route { shortName mode } } } } }`,
-          variables: { id: gtfsId, start: now }
-        };
-        const respDeps = await fetch(GRAPHQL, {
-          method: 'POST',
-          mode: 'cors',
-          headers: {'Content-Type':'application/json'},
-          body: JSON.stringify(queryDeps)
-        });
-        if (!respDeps.ok) throw new Error(`GraphQL departures request failed: ${respDeps.status}`);
-        const { data: { stop } } = await respDeps.json();
-        const results = [];
-        for (const st of stop.stoptimesWithoutPatterns) {
-          const route = st.trip.route.shortName;
-          if (filterRoute && route !== filterRoute) continue;
-          const departureSec = st.serviceDay + (st.realtimeDeparture || st.scheduledDeparture);
-          if (departureSec >= now && departureSec <= now + WINDOW_SEC) {
-            const dt = new Date(departureSec * 1000);
-            results.push(dt.toLocaleTimeString('et-EE',{hour:'2-digit',minute:'2-digit'}));
-          }
-        }
-        return results;
-      } catch (err) {
-        console.error(err);
-        throw err;
-      }
     }
 
     function fillList(id, items) {
@@ -108,19 +83,21 @@
 
     document.addEventListener('DOMContentLoaded', async () => {
       try {
-        const [nomme, balti, tramBalti, tramUni] = await Promise.all([
-          fetchDepartures('Nõmme', null),
-          fetchDepartures('Balti jaam', null),
-          fetchDepartures('Balti jaam', '1'),
-          fetchDepartures('Tallinn Ülikool', '1')
-        ]);
+        // Train stops
+        const nomme = await fetchPeatus('Nõmme', 'train');
+        const baltiTrain = await fetchPeatus('Balti jaam', 'train');
+        // Tram stops (route #1)
+        const baltiTram = await fetchPeatus('Balti jaam', 'tram');
+        const uniTram = await fetchPeatus('Tallinn Ülikool', 'tram');
+
         fillList('nomme-list', nomme);
-        fillList('balti-list', balti);
-        fillList('tram-balti-list', tramBalti);
-        fillList('tram-uni-list', tramUni);
+        fillList('balti-list', baltiTrain);
+        fillList('tram-balti-list', baltiTram);
+        fillList('tram-uni-list', uniTram);
+
         document.getElementById('status').textContent = '';
       } catch (err) {
-        document.getElementById('error').textContent = err.message || 'Failed to load departures';
+        document.getElementById('error').textContent = err.message;
         document.getElementById('status').textContent = '';
       }
     });
