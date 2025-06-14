@@ -15,55 +15,47 @@
   </div>
 
   <script>
-    const API = 'https://peatus.ee/api/departures';
-    const STOP = 'Tallinn';
+    const API_URL = 'https://web.peatus.ee/reitti/Tallinn%2C%20Tallinna%20linn%2C%20P%C3%B5hja-Tallinn%3A%3A59.440498%2C24.736954/N%C3%B5mme%2C%20Tallinna%20linn%2C%20N%C3%B5mme%3A%3A59.387452%2C24.686731?time=1749924043';
     const NOW = Date.now();
     const WINDOW_MS = 2 * 3600 * 1000; // two hours
 
-    function loadJSONP(stop, mode, cbName) {
-      window[cbName] = data => {
-        const list = document.getElementById('train-list');
-        list.innerHTML = '';
-        if (!Array.isArray(data)) {
-          document.getElementById('error').textContent = 'Invalid data received';
-        } else {
-          const times = data
-            .map(item => item.time)
-            .filter(t => {
-              const [h,m] = t.split(':').map(Number);
-              const dt = new Date(NOW);
-              dt.setHours(h, m, 0, 0);
-              return dt.getTime() >= NOW && dt.getTime() <= NOW + WINDOW_MS;
-            });
-          if (times.length) {
-            times.forEach(t => {
-              const li = document.createElement('li');
-              li.textContent = t;
-              list.appendChild(li);
-            });
-          } else {
+    async function loadTrains() {
+      const statusEl = document.getElementById('status');
+      const errorEl = document.getElementById('error');
+      const listEl = document.getElementById('train-list');
+      statusEl.textContent = 'Loading from API...';
+      try {
+        const resp = await fetch(API_URL);
+        if (!resp.ok) throw new Error('Network response was not ok');
+        const data = await resp.json();
+        console.log('API data:', data);
+        // Assuming `data` is an array of departures with `.time` and `.line` fields
+        const departures = (data.departures || data).filter(item => {
+          const dt = new Date(item.time * 1000);
+          return dt.getTime() >= NOW && dt.getTime() <= NOW + WINDOW_MS;
+        });
+        listEl.innerHTML = '';
+        if (departures.length) {
+          departures.forEach(item => {
+            const dt = new Date(item.time * 1000);
             const li = document.createElement('li');
-            li.textContent = 'No upcoming departures';
-            list.appendChild(li);
-          }
+            li.textContent = `${dt.toLocaleTimeString('et-EE', {hour:'2-digit',minute:'2-digit'})} – ${item.line || item.route || ''}`;
+            listEl.appendChild(li);
+          });
+        } else {
+          const li = document.createElement('li');
+          li.textContent = 'No upcoming departures';
+          li.className = 'text-gray-500';
+          listEl.appendChild(li);
         }
-        document.getElementById('status').textContent = '';
-        delete window[cbName];
-        script.remove();
-      };
-      const script = document.createElement('script');
-      script.src = `${API}?stop=${encodeURIComponent(stop)}&mode=${mode}&callback=${cbName}`;
-      script.onerror = () => {
-        document.getElementById('error').textContent = 'Failed to load departures';
-        delete window[cbName];
-        script.remove();
-      };
-      document.body.appendChild(script);
+      } catch (err) {
+        errorEl.textContent = err.message;
+      } finally {
+        statusEl.textContent = '';
+      }
     }
 
-    document.addEventListener('DOMContentLoaded', () => {
-      loadJSONP(STOP, 'train', 'cbTrain');
-    });
+    document.addEventListener('DOMContentLoaded', loadTrains);
   </script>
 </body>
 </html>
