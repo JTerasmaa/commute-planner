@@ -26,7 +26,7 @@
       <!-- Tram departures -->
       <div class="bg-white rounded-lg shadow p-6">
         <h2 class="text-2xl font-semibold mb-2">Tram #1</h2>
-        <h3 class="font-medium">From Balti jaam (train station)</h3>
+        <h3 class="font-medium">From Balti jaam (tram stop)</h3>
         <ul id="tram-balti-list" class="list-disc list-inside mb-4"></ul>
 
         <h3 class="font-medium">From Tallinna Ülikool</h3>
@@ -36,90 +36,82 @@
   </div>
 
   <script>
-    // Step 1: Define GraphQL endpoint
+    // GraphQL endpoint for Estonia
     const GRAPHQL_URL = 'https://api.digitransit.ee/routing/v1/routers/estonia/index/graphql';
     const NOW_SEC = () => Math.floor(Date.now() / 1000);
     const WINDOW_SEC = 2 * 3600;
 
-    // Utility to update status
     const setStatus = text => document.getElementById('status').textContent = text;
     const setError = text => document.getElementById('error').textContent = text;
 
-    // Step 2: Fetch GTFS stop ID by name
+    // Fetch GTFS stop ID by exact name
     async function fetchStopId(name) {
-      console.log('Fetching stop ID for', name);
+      setStatus(`Resolving stop ID for “${name}”…`);
       const query = `query($name:String!) { stops(name:$name) { gtfsId name } }`;
       const resp = await fetch(GRAPHQL_URL, {
         method: 'POST', headers: {'Content-Type':'application/json'},
         body: JSON.stringify({ query, variables: { name } })
       });
-      const json = await resp.json();
-      const stops = json.data?.stops || [];
-      if (!stops.length) throw new Error(`Stop not found: ${name}`);
-      console.log('Stop ID for', name, 'is', stops[0].gtfsId);
-      return stops[0].gtfsId;
+      const { data } = await resp.json();
+      const stops = data.stops;
+      if (!stops || !stops.length) throw new Error(`Stop not found: ${name}`);
+      const id = stops[0].gtfsId;
+      console.log(`Stop ${name} → ${id}`);
+      return id;
     }
 
-    // Step 3: Fetch departures for stop ID, optional route filter
-    async function fetchDeparturesById(stopId, routeFilter=null) {
-      console.log('Fetching departures for', stopId, 'filter', routeFilter);
+    // Fetch upcoming departures by stop ID
+    async function fetchDepartures(stopId, routeFilter=null) {
+      setStatus('Fetching departures…');
       const now = NOW_SEC();
-      const query = `query($id:String!,$startTime:Int!){ stop(id:$id){ stoptimesWithoutPatterns(startTime:$startTime){ serviceDay realtimeDeparture scheduledDeparture trip{ route{ shortName } } } } }`;
+      const query = `query($id:String!,$start:Int!){ stop(id:$id){ stoptimesWithoutPatterns(startTime:$start){ serviceDay realtimeDeparture scheduledDeparture trip{ route{ shortName } } } } }`;
       const resp = await fetch(GRAPHQL_URL, {
         method: 'POST', headers: {'Content-Type':'application/json'},
-        body: JSON.stringify({ query, variables: { id: stopId, startTime: now } })
+        body: JSON.stringify({ query, variables: { id: stopId, start: now } })
       });
-      const json = await resp.json();
-      const events = json.data?.stop?.stoptimesWithoutPatterns || [];
+      const { data } = await resp.json();
+      const events = data.stop.stoptimesWithoutPatterns;
       const times = [];
       for (const ev of events) {
         const route = ev.trip.route.shortName;
         if (routeFilter && route !== routeFilter) continue;
-        const departureSec = ev.serviceDay + (ev.realtimeDeparture || ev.scheduledDeparture);
-        if (departureSec >= now && departureSec <= now + WINDOW_SEC) {
-          const dt = new Date(departureSec * 1000);
-          times.push(dt.toLocaleTimeString('et-EE',{hour:'2-digit',minute:'2-digit'}));
+        const sec = ev.serviceDay + (ev.realtimeDeparture || ev.scheduledDeparture);
+        if (sec >= now && sec <= now + WINDOW_SEC) {
+          times.push(new Date(sec*1000).toLocaleTimeString('et-EE',{hour:'2-digit',minute:'2-digit'}));
         }
       }
-      console.log('Departures for', stopId, times);
+      console.log(`Departures @${stopId}`, times);
       return times;
     }
 
-    // Fill UL list
-    function fillList(id, items) {
+    function fillList(id, arr) {
       const ul = document.getElementById(id);
       ul.innerHTML = '';
-      if (!items.length) ul.innerHTML = '<li class="text-gray-500">No upcoming departures</li>';
-      else items.forEach(t=> ul.insertAdjacentHTML('beforeend', `<li>${t}</li>`));
+      if (!arr.length) ul.innerHTML = '<li class="text-gray-500">No upcoming departures</li>';
+      else arr.forEach(t=>ul.insertAdjacentHTML('beforeend', `<li>${t}</li>`));
     }
 
-    // Step-by-step execution
-    document.addEventListener('DOMContentLoaded', async ()=>{
+    document.addEventListener('DOMContentLoaded', async () => {
       try {
-        setStatus('Resolving stop IDs...');
         const [nommeId, baltiId, uniId] = await Promise.all([
           fetchStopId('Nõmme'),
           fetchStopId('Balti jaam'),
           fetchStopId('Tallinna Ülikool')
         ]);
-
-        setStatus('Fetching departures...');
-        const [nommeTimes, baltiTrainTimes, baltiTramTimes, uniTramTimes] = await Promise.all([
-          fetchDeparturesById(nommeId),
-          fetchDeparturesById(baltiId),
-          fetchDeparturesById(baltiId, '1'),
-          fetchDeparturesById(uniId, '1')
+        const [t1, t2, tram1, tram2] = await Promise.all([
+          fetchDepartures(nommeId),
+          fetchDepartures(baltiId),
+          fetchDepartures(baltiId, '1'),
+          fetchDepartures(uniId, '1')
         ]);
-
-        fillList('nomme-list', nommeTimes);
-        fillList('balti-list', baltiTrainTimes);
-        fillList('tram-balti-list', baltiTramTimes);
-        fillList('tram-uni-list', uniTramTimes);
-
+        fillList('nomme-list', t1);
+        fillList('balti-list', t2);
+        fillList('tram-balti-list', tram1);
+        fillList('tram-uni-list', tram2);
         setStatus('');
-      } catch (err) {
-        console.error(err);
-        setError(err.message);
+      } catch (e) {
+        console.error(e);
+        setError(e.message);
         setStatus('');
       }
     });
