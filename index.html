@@ -10,18 +10,18 @@
 <body class="bg-gray-100">
   <div class="max-w-4xl mx-auto p-6">
     <h1 class="text-3xl font-bold mb-4">My Commute Planner</h1>
-    <p id="status" class="text-gray-600 mb-4">Initializing…</p>
+    <p id="status" class="text-gray-600 mb-4">Loading…</p>
     <div id="error" class="text-red-500 mb-4"></div>
     <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
-      <div class="bg-white rounded-lg shadow p-6">
-        <h2 class="text-2xl font-semibold mb-2">Elron Trains</h2>
+      <div class="bg-white shadow rounded p-6">
+        <h2 class="text-2xl mb-2">Elron Trains</h2>
         <h3 class="font-medium">From Nõmme</h3>
         <ul id="nomme-list" class="list-disc list-inside mb-4"></ul>
         <h3 class="font-medium">From Balti jaam</h3>
         <ul id="balti-list" class="list-disc list-inside"></ul>
       </div>
-      <div class="bg-white rounded-lg shadow p-6">
-        <h2 class="text-2xl font-semibold mb-2">Tram #1</h2>
+      <div class="bg-white shadow rounded p-6">
+        <h2 class="text-2xl mb-2">Tram #1</h2>
         <h3 class="font-medium">From Balti jaam (tram stop)</h3>
         <ul id="tram-balti-list" class="list-disc list-inside mb-4"></ul>
         <h3 class="font-medium">From Tallinna Ülikool</h3>
@@ -31,60 +31,37 @@
   </div>
 
   <script>
-    // Proxy helper: wrap GraphQL GET through allorigins to avoid CORS
-    const GRAPHQL_URL = 'https://api.digitransit.ee/routing/v1/routers/estonia/index/graphql';
-    const PROXY = 'https://api.allorigins.win/raw?url=';
-    const NOW_SEC = () => Math.floor(Date.now() / 1000);
-    const WINDOW_SEC = 2 * 3600;
+    // JSONP loader for peatus.ee API
+    const API_BASE = 'https://peatus.ee/api/departures';
+    const NOW = Date.now();
+    const WINDOW_MS = 2 * 3600 * 1000; // two hours
 
-    const setStatus = text => document.getElementById('status').textContent = text;
-    const setError = text => document.getElementById('error').textContent = text;
-
-    // Send GraphQL query via GET proxy to bypass CORS
-    async function fetchGraphQL(query, variables) {
-      const url = GRAPHQL_URL + '?query=' + encodeURIComponent(query)
-        + '&variables=' + encodeURIComponent(JSON.stringify(variables));
-      const resp = await fetch(PROXY + encodeURIComponent(url));
-      if (!resp.ok) throw new Error('Network error ' + resp.status);
-      const json = await resp.json();
-      return json;
-    }
-
-    // Fetch GTFS stop ID by name
-    async function fetchStopId(name) {
-      setStatus(`Resolving stop ID for “${name}”…`);
-      const query = `query($name:String!) { stops(name:$name) { gtfsId } }`;
-      let json = await fetchGraphQL(query, { name });
-      let stops = json.data?.stops || [];
-      if (!stops.length) {
-        // retry without diacritics
-        const alt = name.normalize('NFD').replace(/\p{Diacritic}/gu, '');
-        setStatus(`Retrying for “${alt}”…`);
-        json = await fetchGraphQL(query, { name: alt });
-        stops = json.data?.stops || [];
-      }
-      if (!stops.length) throw new Error(`Stop not found: ${name}`);
-      return stops[0].gtfsId;
-    }
-
-    // Fetch imminent departures by stopId
-    async function fetchDepartures(stopId, routeFilter = null) {
-      setStatus('Fetching departures…');
-      const now = NOW_SEC();
-      const query = `query($id:String!,$start:Int!){ stop(id:$id){ stoptimesWithoutPatterns(startTime:$start){ serviceDay realtimeDeparture scheduledDeparture trip{ route{ shortName } } } } }`;
-      const json = await fetchGraphQL(query, { id: stopId, start: now });
-      const events = json.data?.stop?.stoptimesWithoutPatterns || [];
-      const times = [];
-      for (const ev of events) {
-        const route = ev.trip.route.shortName;
-        if (routeFilter && route !== routeFilter) continue;
-        const sec = ev.serviceDay + (ev.realtimeDeparture || ev.scheduledDeparture);
-        if (sec >= now && sec <= now + WINDOW_SEC) {
-          times.push(new Date(sec * 1000).
-            toLocaleTimeString('et-EE', { hour: '2-digit', minute: '2-digit' }));
+    function loadJSONP(stop, mode, callbackName) {
+      window[callbackName] = data => {
+        try {
+          const times = (data || [])
+            .map(item => item.time)
+            .filter(t => {
+              const [h, m] = t.split(':').map(Number);
+              const dt = new Date(NOW);
+              dt.setHours(h, m, 0, 0);
+              return dt.getTime() >= NOW && dt.getTime() <= NOW + WINDOW_MS;
+            });
+          window[callbackName + 'Handler'](times);
+        } catch (e) {
+          document.getElementById('error').textContent = e.message;
         }
-      }
-      return times;
+        document.body.removeChild(script);
+        delete window[callbackName];
+      };
+      const script = document.createElement('script');
+      script.src = `${API_BASE}?stop=${encodeURIComponent(stop)}&mode=${mode}&callback=${callbackName}`;
+      script.onerror = () => {
+        document.getElementById('error').textContent = 'Failed to load ' + stop;
+        document.body.removeChild(script);
+        delete window[callbackName];
+      };
+      document.body.appendChild(script);
     }
 
     function fillList(id, arr) {
@@ -94,28 +71,22 @@
       else arr.forEach(t => ul.insertAdjacentHTML('beforeend', `<li>${t}</li>`));
     }
 
-    document.addEventListener('DOMContentLoaded', async () => {
+    // Handlers for each stop
+    window['cbNommeHandler'] = times => fillList('nomme-list', times);
+    window['cbBaltiTrainHandler'] = times => fillList('balti-list', times);
+    window['cbBaltiTramHandler'] = times => fillList('tram-balti-list', times);
+    window['cbUniHandler'] = times => fillList('tram-uni-list', times);
+
+    document.addEventListener('DOMContentLoaded', () => {
       try {
-        const [nommeId, baltiId, uniId] = await Promise.all([
-          fetchStopId('Nõmme'),
-          fetchStopId('Balti jaam'),
-          fetchStopId('Tallinna Ülikool')
-        ]);
-        const [t1, t2, tram1, tram2] = await Promise.all([
-          fetchDepartures(nommeId),
-          fetchDepartures(baltiId),
-          fetchDepartures(baltiId, '1'),
-          fetchDepartures(uniId, '1')
-        ]);
-        fillList('nomme-list', t1);
-        fillList('balti-list', t2);
-        fillList('tram-balti-list', tram1);
-        fillList('tram-uni-list', tram2);
-        setStatus('');
+        loadJSONP('Nõmme', 'train', 'cbNomme');
+        loadJSONP('Balti jaam', 'train', 'cbBaltiTrain');
+        loadJSONP('Balti jaam', 'tram', 'cbBaltiTram');
+        loadJSONP('Tallinna Ülikool', 'tram', 'cbUni');
+        document.getElementById('status').textContent = '';
       } catch (e) {
-        console.error(e);
-        setError(e.message);
-        setStatus('');
+        document.getElementById('error').textContent = e.message;
+        document.getElementById('status').textContent = '';
       }
     });
   </script>
