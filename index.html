@@ -36,32 +36,34 @@
   </div>
 
   <script>
-    // Using peatus.ee REST API for schedules
-    const BASE = 'https://peatus.ee/api';
+    const BASE = 'https://peatus.ee/api/departures';
     const NOW = new Date();
-    const WINDOW = 2 * 3600 * 1000; // 2 hours in ms
+    const WINDOW = 2 * 3600 * 1000;
 
-    /**
-     * Fetch departures from peatus.ee for a given stop and transport type
-     * @param {string} stopName - human-readable stop name (e.g. "Nõmme")
-     * @param {'train'|'tram'} type
-     * @returns {Promise<string[]>} array of "HH:MM" strings
-     */
-    async function fetchPeatus(stopName, type) {
-      // Encode stop and type for query
-      const url = `${BASE}/departures?stop=${encodeURIComponent(stopName)}&mode=${type}`;
-      const resp = await fetch(url);
-      if (!resp.ok) throw new Error(`${type} API error: ${resp.status}`);
-      const data = await resp.json();
-      // data expected: [{ time: "HH:MM" , direction: "..." }, ...]
-      return data
-        .map(item => item.time)
-        .filter(t => {
-          const [hh, mm] = t.split(':').map(Number);
-          const dt = new Date(NOW);
-          dt.setHours(hh, mm, 0, 0);
-          return dt >= NOW && dt - NOW <= WINDOW;
-        });
+    // JSONP fetch from peatus.ee
+    function fetchPeatus(stopName, type) {
+      return new Promise((resolve, reject) => {
+        const callbackName = 'cb' + Math.random().toString(36).substr(2);
+        window[callbackName] = data => {
+          cleanup();
+          if (!Array.isArray(data)) return reject(new Error('Invalid data'));
+          const times = data.map(item => item.time).filter(t => {
+            const [hh, mm] = t.split(':').map(Number);
+            const dt = new Date(NOW);
+            dt.setHours(hh, mm, 0, 0);
+            return dt >= NOW && dt - NOW <= WINDOW;
+          });
+          resolve(times);
+        };
+        const cleanup = () => {
+          delete window[callbackName];
+          document.body.removeChild(script);
+        };
+        const script = document.createElement('script');
+        script.src = `${BASE}?stop=${encodeURIComponent(stopName)}&mode=${type}&callback=${callbackName}`;
+        script.onerror = () => { cleanup(); reject(new Error('Failed to load script')); };
+        document.body.appendChild(script);
+      });
     }
 
     function fillList(id, items) {
@@ -83,18 +85,16 @@
 
     document.addEventListener('DOMContentLoaded', async () => {
       try {
-        // Train stops
-        const nomme = await fetchPeatus('Nõmme', 'train');
-        const baltiTrain = await fetchPeatus('Balti jaam', 'train');
-        // Tram stops (route #1)
-        const baltiTram = await fetchPeatus('Balti jaam', 'tram');
-        const uniTram = await fetchPeatus('Tallinn Ülikool', 'tram');
-
+        const [nomme, baltiTrain, baltiTram, uniTram] = await Promise.all([
+          fetchPeatus('Nõmme', 'train'),
+          fetchPeatus('Balti jaam', 'train'),
+          fetchPeatus('Balti jaam', 'tram'),
+          fetchPeatus('Tallinn Ülikool', 'tram')
+        ]);
         fillList('nomme-list', nomme);
         fillList('balti-list', baltiTrain);
         fillList('tram-balti-list', baltiTram);
         fillList('tram-uni-list', uniTram);
-
         document.getElementById('status').textContent = '';
       } catch (err) {
         document.getElementById('error').textContent = err.message;
