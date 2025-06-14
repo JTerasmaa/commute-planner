@@ -53,104 +53,66 @@
   </div>
 
   <script>
-    const CORS = url => `https://api.allorigins.win/raw?url=${encodeURIComponent(url)}`;
-    const ELRON_API = 'https://api1.elron.ee/index.php/soiduplaan/peatus/';
-    const TRAM_STOPS_URL = 'https://transport.tallinn.ee/gps.txt';
-    const TRAM_SIRI = 'https://transport.tallinn.ee/siri-stop-departures.php?stopid=';
-    const TRAIN_STOP_NOMME = 'Nõmme';
-    const TRAIN_STOP_BALTI = 'Balti jaam';
-    const TRAM_STOP_BALTI_NAME = 'Balti jaam';
-    const TRAM_STOP_UNI_NAME = 'Tallinn Ülikool';
+    const GRAPHQL = 'https://api.digitransit.ee/routing/v1/routers/estonia/index/graphql';
+    const NOW_SEC = () => Math.floor(Date.now() / 1000);
+    const WINDOW_SEC = 2 * 3600;
 
-    Vue.createApp({
-      data() {
-        return {
-          trainsFromNomme: [],
-          trainsFromBalti: [],
-          tramsFromBalti: [],
-          tramsFromUni: [],
-          loading: true,
-          error: null,
-        };
-      },
-      methods: {
-        formatTimeHHMM(timeStr) { return timeStr; },
-        async fetchTrainDepartures(stopName) {
-          try {
-            const url = `${ELRON_API}${encodeURIComponent(stopName)}`;
-            const resp = await fetch(CORS(url));
-            if (!resp.ok) throw new Error('Train API fetch failed');
-            const json = await resp.json();
-            if (json.status !== 1 || !Array.isArray(json.data)) throw new Error(`No data for ${stopName}`);
-            const now = Date.now(), cutoff = now + 2 * 3600 * 1000;
-            return json.data
-              .map(item => item.tegelik_aeg || item.plaaniline_aeg)
-              .map(t => {
-                const [hh, mm] = t.split(':').map(Number);
-                const dt = new Date(); dt.setHours(hh, mm, 0, 0);
-                return dt;
-              })
-              .filter(dt => dt.getTime() >= now && dt.getTime() <= cutoff)
-              .map(dt => dt.toLocaleTimeString('et-EE', {hour:'2-digit',minute:'2-digit'}));
-          } catch (e) {
-            console.error(e);
-            return [];
+    async function fetchDepartures(stopName, filterRoute) {
+      // 1. Find stop by name
+      const queryStops = {
+        query: `query($name:String) { stops(name:$name) { gtfsId name } }`,
+        variables: { name: stopName }
+      };
+      const respStops = await fetch(GRAPHQL, {
+        method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify(queryStops)
+      });
+      const dataStops = await respStops.json();
+      const stop = dataStops.data.stops[0];
+      if (!stop) throw new Error(`Stop not found: ${stopName}`);
+
+      // 2. Fetch departures
+      const now = NOW_SEC();
+      const queryDeps = {
+        query: `query($id:String!,$startTime:Int!) {
+          stop(id:$id) {
+            stoptimesWithoutPatterns(startTime:$startTime) {
+              serviceDay
+              realtimeDeparture
+              scheduledDeparture
+              headsign
+              trip { route { shortName mode } }
+            }
           }
-        },
-        async fetchTramStops() {
-          try {
-            const res = await fetch(CORS(TRAM_STOPS_URL));
-            if (!res.ok) throw new Error('Failed to fetch tram stops');
-            const txt = await res.text();
-            return txt.trim().split('\n').map(line => {
-              const parts = line.split(',');
-              return { id: parts[0].trim(), name: parts[1].trim() };
-            });
-          } catch (e) {
-            console.error(e);
-            return [];
-          }
-        },
-        async fetchTramDepartures(stopName) {
-          try {
-            const stops = await this.fetchTramStops();
-            const stop = stops.find(s => s.name === stopName);
-            if (!stop) throw new Error(`Stop not found: ${stopName}`);
-            const xmlText = await fetch(CORS(`${TRAM_SIRI}${stop.id}`)).then(r => r.text());
-            const doc = new DOMParser().parseFromString(xmlText, 'application/xml');
-            const now = Date.now(), cutoff = now + 2 * 3600 * 1000;
-            return Array.from(doc.querySelectorAll('StopEvent'))
-              .map(ev => ev.querySelector('ExpectedDepartureTime')?.textContent)
-              .filter(t => {
-                const dt = new Date(t).getTime();
-                return dt >= now && dt <= cutoff;
-              })
-              .map(t => new Date(t).toLocaleTimeString('et-EE',{hour:'2-digit',minute:'2-digit'}));
-          } catch (e) {
-            console.error(e);
-            return [];
-          }
-        }
-      },
-      async mounted() {
-        try {
-          [
-            this.trainsFromNomme,
-            this.trainsFromBalti,
-            this.tramsFromBalti,
-            this.tramsFromUni
-          ] = await Promise.all([
-            this.fetchTrainDepartures(TRAIN_STOP_NOMME),
-            this.fetchTrainDepartures(TRAIN_STOP_BALTI),
-            this.fetchTramDepartures(TRAM_STOP_BALTI_NAME),
-            this.fetchTramDepartures(TRAM_STOP_UNI_NAME)
-          ]);
-        } catch (e) {
-          this.error = e.message;
-        } finally {
-          this.loading = false;
+        }`,
+        variables: { id: stop.gtfsId, startTime: now }
+      };
+      const respDeps = await fetch(GRAPHQL, {
+        method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify(queryDeps)
+      });
+      const dataDeps = await respDeps.json();
+      const times = [];
+      for (const st of dataDeps.data.stop.stoptimesWithoutPatterns) {
+        // filter by route if provided
+        if (filterRoute && st.trip.route.shortName !== filterRoute) continue;
+        // compute absolute timestamp
+        const ts = (st.serviceDay + (st.realtimeDeparture || st.scheduledDeparture));
+        if (ts >= now && ts <= now + WINDOW_SEC) {
+          const date = new Date(ts * 1000);
+          times.push(date.toLocaleTimeString('et-EE', {hour:'2-digit',minute:'2-digit'}));
         }
       }
+      return times;
+    }
+
+    Vue.createApp({
+      data() { return {
+        trainsFromNomme: [],
+        trainsFromBalti: [],
+        tramsFromBalti: [],
+        tramsFromUni: [],
+        loading: true,
+        error: null,
+      }},"schedule":"{}")
     }).mount('#app');
   </script>
 </body>
