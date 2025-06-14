@@ -37,33 +37,29 @@
 
   <script>
     const BASE = 'https://peatus.ee/api/departures';
+    const PROXY = 'https://api.allorigins.win/raw?url=';
     const NOW = new Date();
     const WINDOW = 2 * 3600 * 1000;
 
-    // JSONP fetch from peatus.ee
-    function fetchPeatus(stopName, type) {
-      return new Promise((resolve, reject) => {
-        const callbackName = 'cb' + Math.random().toString(36).substr(2);
-        window[callbackName] = data => {
-          cleanup();
-          if (!Array.isArray(data)) return reject(new Error('Invalid data'));
-          const times = data.map(item => item.time).filter(t => {
+    async function fetchPeatus(stopName, type) {
+      try {
+        const url = `${BASE}?stop=${encodeURIComponent(stopName)}&mode=${type}`;
+        const res = await fetch(PROXY + encodeURIComponent(url));
+        if (!res.ok) throw new Error(`Peatus API error: ${res.status}`);
+        const data = await res.json();
+        if (!Array.isArray(data)) throw new Error('Invalid Peatus response');
+        return data
+          .map(item => item.time)
+          .filter(t => {
             const [hh, mm] = t.split(':').map(Number);
             const dt = new Date(NOW);
             dt.setHours(hh, mm, 0, 0);
             return dt >= NOW && dt - NOW <= WINDOW;
           });
-          resolve(times);
-        };
-        const cleanup = () => {
-          delete window[callbackName];
-          document.body.removeChild(script);
-        };
-        const script = document.createElement('script');
-        script.src = `${BASE}?stop=${encodeURIComponent(stopName)}&mode=${type}&callback=${callbackName}`;
-        script.onerror = () => { cleanup(); reject(new Error('Failed to load script')); };
-        document.body.appendChild(script);
-      });
+      } catch (err) {
+        console.error(err);
+        throw err;
+      }
     }
 
     function fillList(id, items) {
@@ -97,7 +93,7 @@
         fillList('tram-uni-list', uniTram);
         document.getElementById('status').textContent = '';
       } catch (err) {
-        document.getElementById('error').textContent = err.message;
+        document.getElementById('error').textContent = err.message || 'Failed to fetch';
         document.getElementById('status').textContent = '';
       }
     });
