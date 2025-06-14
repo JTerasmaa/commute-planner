@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Next Trains from Tallinn</title>
+  <title>Next Elron Trains from Tallinn</title>
   <link href="https://cdn.jsdelivr.net/npm/tailwindcss@2.2.19/dist/tailwind.min.css" rel="stylesheet">
 </head>
 <body class="bg-gray-100">
@@ -15,58 +15,46 @@
   </div>
 
   <script>
-    // Using peatus.ee JSONP API for departure times
-    const STOP = 'Tallinn';
-    const MODE = 'train';
-    const WINDOW_MS = 2 * 3600 * 1000; // 2 hours
+    const API_URL = 'https://web.peatus.ee/reitti/Tallinn%2C%20Tallinna%20linn%2C%20P%C3%B5hja-Tallinn%3A%3A59.440498%2C24.736954/N%C3%B5mme%2C%20Tallinna%20linn%2C%20N%C3%B5mme%3A%3A59.387452%2C24.686731?time=' + Math.floor(Date.now()/1000);
+    const PROXY = 'https://api.allorigins.win/raw?url=';
+    const WINDOW_MS = 2 * 3600 * 1000;
     const NOW = Date.now();
 
-    function loadJSONP(stop, mode, callbackName, listId) {
-      window[callbackName] = data => {
-        const listEl = document.getElementById(listId);
+    async function fetchAndParse() {
+      const statusEl = document.getElementById('status');
+      const errorEl = document.getElementById('error');
+      const listEl = document.getElementById('train-list');
+      try {
+        statusEl.textContent = 'Fetching itinerary...';
+        const resp = await fetch(PROXY + encodeURIComponent(API_URL));
+        if (!resp.ok) throw new Error('Network error ' + resp.status);
+        const html = await resp.text();
+        // Extract all HH:MM times from the HTML
+        const matches = [...html.matchAll(/(\d{2}:\d{2})/g)].map(m => m[1]);
+        // Filter to future times within next 2 hours
+        const times = matches.filter(t => {
+          const [h,m] = t.split(':').map(Number);
+          const dt = new Date(NOW);
+          dt.setHours(h, m, 0, 0);
+          return dt.getTime() >= NOW && dt.getTime() <= NOW + WINDOW_MS;
+        });
         listEl.innerHTML = '';
-        document.getElementById('status').textContent = '';
-        if (!Array.isArray(data)) {
-          document.getElementById('error').textContent = 'Invalid data received';
+        if (times.length) {
+          // dedupe
+          [...new Set(times)].forEach(t => {
+            const li = document.createElement('li'); li.textContent = t; listEl.appendChild(li);
+          });
         } else {
-          const times = data
-            .map(i => i.time)
-            .filter(t => {
-              const [h, m] = t.split(':').map(Number);
-              const dt = new Date(NOW);
-              dt.setHours(h, m, 0, 0);
-              return dt.getTime() >= NOW && dt.getTime() <= NOW + WINDOW_MS;
-            });
-          if (times.length) {
-            times.forEach(t => {
-              const li = document.createElement('li');
-              li.textContent = t;
-              listEl.appendChild(li);
-            });
-          } else {
-            const li = document.createElement('li');
-            li.textContent = 'No upcoming departures';
-            li.className = 'text-gray-500';
-            listEl.appendChild(li);
-          }
+          const li = document.createElement('li'); li.textContent = 'No upcoming departures'; li.className='text-gray-500'; listEl.appendChild(li);
         }
-        delete window[callbackName];
-        script.remove();
-      };
-      const script = document.createElement('script');
-      script.src = `https://peatus.ee/api/departures?stop=${encodeURIComponent(stop)}&mode=${mode}&callback=${callbackName}`;
-      script.onerror = () => {
-        document.getElementById('error').textContent = `Failed to load departures for ${stop}`;
-        document.getElementById('status').textContent = '';
-        delete window[callbackName];
-        script.remove();
-      };
-      document.body.appendChild(script);
+      } catch (e) {
+        errorEl.textContent = e.message;
+      } finally {
+        statusEl.textContent = '';
+      }
     }
 
-    document.addEventListener('DOMContentLoaded', () => {
-      loadJSONP(STOP, MODE, 'cbTrains', 'train-list');
-    });
+    document.addEventListener('DOMContentLoaded', fetchAndParse);
   </script>
 </body>
 </html>
