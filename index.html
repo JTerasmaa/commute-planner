@@ -1,0 +1,97 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>My Commute Planner</title>
+  <!-- Vue.js for reactive UI -->
+  <script src="https://unpkg.com/vue@3"></script>
+  <!-- Tailwind CSS for styling -->
+  <link href="https://cdn.jsdelivr.net/npm/tailwindcss@2.2.19/dist/tailwind.min.css" rel="stylesheet">
+</head>
+<body class="bg-gray-100">
+  <div id="app" class="max-w-2xl mx-auto p-4 bg-white rounded-lg shadow">
+    <h1 class="text-3xl font-bold mb-4">My Commute Planner</h1>
+    <p class="text-sm text-gray-600 mb-4">Showing next two hours from now</p>
+    <div v-if="loading" class="text-center">Loading schedules...</div>
+    <div v-else>
+      <div v-if="error" class="text-red-500 mb-4">Error: {{ error }}</div>
+      <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+        <!-- Morning commute -->
+        <div class="border p-4 rounded">
+          <h2 class="text-xl font-semibold mb-2">Home → University</h2>
+          <h3 class="font-medium">Train (Nõmme → Balti jaam)</h3>
+          <ul class="list-disc list-inside mb-2">
+            <li v-for="d in homeToUniTrain" :key="d.departure_time">
+              {{ formatTime(d.departure_time) }} → {{ formatTime(d.arrival_time) }} <span class="text-gray-500">({{ d.headsign }})</span>
+            </li>
+          </ul>
+          <h3 class="font-medium">Tram (Balti jaam → Ülikool)</h3>
+          <ul class="list-disc list-inside">
+            <li v-for="d in homeToUniTram" :key="d.departure_time">
+              {{ formatTime(d.departure_time) }} → {{ formatTime(d.arrival_time) }} <span class="text-gray-500">({{ d.route_short_name }})</span>
+            </li>
+          </ul>
+        </div>
+        <!-- Evening commute -->
+        <div class="border p-4 rounded">
+          <h2 class="text-xl font-semibold mb-2">University → Home</h2>
+          <h3 class="font-medium">Tram (Ülikool → Balti jaam)</h3>
+          <ul class="list-disc list-inside mb-2">
+            <li v-for="d in uniToHomeTram" :key="d.departure_time">
+              {{ formatTime(d.departure_time) }} → {{ formatTime(d.arrival_time) }} <span class="text-gray-500">({{ d.route_short_name }})</span>
+            </li>
+          </ul>
+          <h3 class="font-medium">Train (Balti jaam → Nõmme)</h3>
+          <ul class="list-disc list-inside">
+            <li v-for="d in uniToHomeTrain" :key="d.departure_time">
+              {{ formatTime(d.departure_time) }} → {{ formatTime(d.arrival_time) }} <span class="text-gray-500">({{ d.headsign }})</span>
+            </li>
+          </ul>
+        </div>
+      </div>
+    </div>
+  </div>
+  <script>
+    const API_BASE_URL = 'https://your-api-domain.com/api';
+    const HOME = 'Nõmme', TRANSFER = 'Balti jaam', UNI = 'Tallinn Ülikool';
+    const app = Vue.createApp({
+      data() { return {
+        homeToUniTrain: [], homeToUniTram: [],
+        uniToHomeTram: [], uniToHomeTrain: [],
+        loading: true, error: null
+      }},
+      methods: {
+        async fetchStop(name) {
+          const r = await fetch(\`\${API_BASE_URL}/stops?search=\${name}\`);
+          const j = await r.json();
+          if (!j.stops?.length) throw new Error('Stop not found: '+name);
+          return j.stops[0].id;
+        },
+        async fetchDeps(stopId, from, to) {
+          const r = await fetch(\`\${API_BASE_URL}/stop/\${stopId}/departures?from=\${from}&to=\${to}\`);
+          return (await r.json()).departures;
+        },
+        fmt(t) { return new Date(t).toLocaleTimeString('et-EE',{hour:'2-digit',minute:'2-digit'}); },
+        async load() {
+          this.loading = true;
+          const now = new Date(), later = new Date(now.getTime()+2e3*3600).toISOString(), nowISO = now.toISOString();
+          try {
+            const [h, x, u] = await Promise.all([this.fetchStop(HOME), this.fetchStop(TRANSFER), this.fetchStop(UNI)]);
+            const [t1, tr1, tr2, t2] = await Promise.all([
+              this.fetchDeps(h, nowISO, later),
+              this.fetchDeps(x, nowISO, later),
+              this.fetchDeps(u, nowISO, later),
+              this.fetchDeps(x, nowISO, later)
+            ]);
+            this.homeToUniTrain = t1; this.homeToUniTram = tr1;
+            this.uniToHomeTram = tr2; this.uniToHomeTrain = t2;
+          } catch(e) { this.error = e.message }
+          finally { this.loading = false }
+        }
+      },
+      mounted: function(){ this.load() }
+    }).mount('#app');
+  </script>
+</body>
+</html>
