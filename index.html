@@ -6,43 +6,124 @@
   <title>My Commute Planner</title>
   <!-- Tailwind CSS -->
   <link href="https://cdn.jsdelivr.net/npm/tailwindcss@2.2.19/dist/tailwind.min.css" rel="stylesheet" />
+  <!-- Vue UMD -->
+  <script src="https://unpkg.com/vue@3/dist/vue.global.prod.js"></script>
 </head>
 <body class="bg-gray-100">
-  <div class="max-w-4xl mx-auto p-6">
+  <div id="app" class="max-w-4xl mx-auto p-6">
     <h1 class="text-3xl font-bold mb-6">My Commute Planner</h1>
-    <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
-      <!-- Train schedule link -->
-      <div class="bg-white rounded-lg shadow p-6 flex flex-col justify-between">
-        <div>
-          <h2 class="text-2xl font-semibold mb-2">Train: Nõmme → Balti jaam</h2>
-          <p class="text-gray-600 mb-4">View upcoming departures for the next 2 hours.</p>
-        </div>
-        <a
-          href="https://elron.ee/en/trains?from=Nom%C3%A4nne&to=Balti-jaam"
-          target="_blank"
-          rel="noopener"
-          class="mt-4 inline-block text-center bg-blue-600 text-white font-medium py-2 px-4 rounded hover:bg-blue-700"
-        >
-          Open Elron Timetable
-        </a>
+    <p class="text-gray-600 mb-4">Next 2 hours from now</p>
+    <div v-if="error" class="text-red-500 mb-4">Error: {{ error }}</div>
+    <div v-if="loading" class="mb-4">Loading times...</div>
+    <div v-else class="grid grid-cols-1 md:grid-cols-2 gap-6">
+      <!-- Train times -->
+      <div class="bg-white rounded-lg shadow p-6">
+        <h2 class="text-2xl font-semibold mb-2">Trains</h2>
+        <h3 class="font-medium">Nõmme → Balti jaam</h3>
+        <ul class="list-disc list-inside mb-4">
+          <li v-for="t in trainsToBalti" :key="t.departure">
+            {{ format(t.departure) }} → {{ format(t.arrival) }}
+          </li>
+          <li v-if="!trainsToBalti.length" class="text-gray-500">No upcoming departures</li>
+        </ul>
+        <h3 class="font-medium">Balti jaam → Nõmme</h3>
+        <ul class="list-disc list-inside">
+          <li v-for="t in trainsToNomme" :key="t.departure">
+            {{ format(t.departure) }} → {{ format(t.arrival) }}
+          </li>
+          <li v-if="!trainsToNomme.length" class="text-gray-500">No upcoming departures</li>
+        </ul>
       </div>
-
-      <!-- Tram schedule link -->
-      <div class="bg-white rounded-lg shadow p-6 flex flex-col justify-between">
-        <div>
-          <h2 class="text-2xl font-semibold mb-2">Tram: Balti jaam → Tallinn Ülikool</h2>
-          <p class="text-gray-600 mb-4">View upcoming departures for the next 2 hours.</p>
-        </div>
-        <a
-          href="https://transport.tallinn.ee/?dep=Balti%20jaam&arr=Tallinn%20%C3%9Clikool&mode=tram"
-          target="_blank"
-          rel="noopener"
-          class="mt-4 inline-block text-center bg-green-600 text-white font-medium py-2 px-4 rounded hover:bg-green-700"
-        >
-          Open Tram Planner
-        </a>
+      <!-- Tram times -->
+      <div class="bg-white rounded-lg shadow p-6">
+        <h2 class="text-2xl font-semibold mb-2">Tram #1</h2>
+        <h3 class="font-medium">Balti jaam → Ülikool</h3>
+        <ul class="list-disc list-inside mb-4">
+          <li v-for="t in tramsToUni" :key="t.departure_time">
+            {{ format(t.departure_time) }} → {{ format(t.arrival_time) }}
+          </li>
+          <li v-if="!tramsToUni.length" class="text-gray-500">No upcoming departures</li>
+        </ul>
+        <h3 class="font-medium">Ülikool → Balti jaam</h3>
+        <ul class="list-disc list-inside">
+          <li v-for="t in tramsToBalti" :key="t.departure_time">
+            {{ format(t.departure_time) }} → {{ format(t.arrival_time) }}
+          </li>
+          <li v-if="!tramsToBalti.length" class="text-gray-500">No upcoming departures</li>
+        </ul>
       </div>
     </div>
   </div>
+
+  <script>
+    const CORS_PROXY = 'https://api.allorigins.win/raw?url='; // free proxy
+    const SIRI_URL = 'https://transport.tallinn.ee/siri-stop-departures.php?stopid=';
+    const ELRON_RT_URL = 'https://elron.ee/map_data.json';
+    const TRAM_STOP_BALTI = 'Baltijaam'; // ensure exact ID mapping
+    const TRAM_STOP_UNI = 'Tallinn     const TRAM_STOP_UNI = 'Tallinn\x20Ülikool';
+    const TRAIN_STOP_NOMME = 'Nõmme';
+    const TRAIN_STOP_BALTI = 'Balti jaam';
+
+    Vue.createApp({
+      data() {
+        return {
+          trainsToBalti: [],
+          trainsToNomme: [],
+          tramsToUni: [],
+          tramsToBalti: [],
+          loading: true,
+          error: null,
+        };
+      },
+      methods: {
+        format(dt) {
+          return new Date(dt).toLocaleTimeString('et-EE', { hour: '2-digit', minute: '2-digit' });
+        },
+        async fetchTrains() {
+          // Fetch live vehicles
+          const resp = await fetch(CORS_PROXY + encodeURIComponent(ELRON_RT_URL));
+          const vehicles = await resp.json();
+          const nowMs = Date.now();
+          const twoH = nowMs + 2 * 3600 * 1000;
+          const toBalti = [], toNomme = [];
+          vehicles.forEach(v => {
+            if (v.next_stop === TRAIN_STOP_BALTI && v.from === TRAIN_STOP_NOMME) toBalti.push(v);
+            if (v.next_stop === TRAIN_STOP_NOMME && v.from === TRAIN_STOP_BALTI) toNomme.push(v);
+          });
+          // Sort by ETA
+          toBalti.sort((a,b)=>a.eta-b.eta);
+          toNomme.sort((a,b)=>a.eta-b.eta);
+          this.trainsToBalti = toBalti.map(v=>({departure:new Date(v.time_departure),arrival:new Date(v.time_arrival)}));
+          this.trainsToNomme = toNomme.map(v=>({departure:new Date(v.time_departure),arrival:new Date(v.time_arrival)}));
+        },
+        async fetchTrams() {
+          // Helper to parse SIRI XML for a stop
+          const parseSiri = xml => {
+            const doc = new DOMParser().parseFromString(xml,'text/xml');
+            return Array.from(doc.querySelectorAll('StopEvent')).map(ev=>({
+              departure_time: ev.querySelector('ExpectedDepartureTime')?.textContent,
+              arrival_time: ev.querySelector('ExpectedArrivalTime')?.textContent,
+            }));
+          };
+          // Two legs
+          const [baltiXML, uniXML] = await Promise.all([
+            fetch(CORS_PROXY + encodeURIComponent(SIRI_URL + TRAM_STOP_BALTI)).then(r=>r.text()),
+            fetch(CORS_PROXY + encodeURIComponent(SIRI_URL + TRAM_STOP_UNI)).then(r=>r.text())
+          ]);
+          this.tramsToUni = parseSiri(baltiXML);
+          this.tramsToBalti = parseSiri(uniXML);
+        }
+      },
+      async mounted() {
+        try {
+          await Promise.all([this.fetchTrains(), this.fetchTrams()]);
+        } catch (e) {
+          this.error = e.message;
+        } finally {
+          this.loading = false;
+        }
+      }
+    }).mount('#app');
+  </script>
 </body>
 </html>
