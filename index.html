@@ -56,13 +56,20 @@
   </div>
 
   <script>
-    const CORS_PROXY = 'https://api.allorigins.win/raw?url='; // free proxy
-    const SIRI_URL = 'https://transport.tallinn.ee/siri-stop-departures.php?stopid=';
+    // CORS proxy for the APIs
+    const CORS = url => `https://api.allorigins.win/raw?url=${encodeURIComponent(url)}`;
+
+    // URLs
     const ELRON_RT_URL = 'https://elron.ee/map_data.json';
-    const TRAM_STOP_BALTI = 'Baltijaam'; // ensure exact ID mapping
-    const TRAM_STOP_UNI = 'Tallinn     const TRAM_STOP_UNI = 'Tallinn\x20Ülikool';
+    const TRAM_STOPS_URL = 'https://transport.tallinn.ee/gps.txt';
+    const SIRI_URL = 'https://transport.tallinn.ee/siri-stop-departures.php?stopid=';
+
+    // Stop names
     const TRAIN_STOP_NOMME = 'Nõmme';
     const TRAIN_STOP_BALTI = 'Balti jaam';
+    const TRAM_NAME = 'Tramm 1';
+    const TRAM_STOP_BALTI_NAME = 'Balti jaam';
+    const TRAM_STOP_UNI_NAME = 'Tallinn Ülikool';
 
     Vue.createApp({
       data() {
@@ -80,48 +87,53 @@
           return new Date(dt).toLocaleTimeString('et-EE', { hour: '2-digit', minute: '2-digit' });
         },
         async fetchTrains() {
-          // Fetch live vehicles
-          const resp = await fetch(CORS_PROXY + encodeURIComponent(ELRON_RT_URL));
+          const resp = await fetch(CORS(ELRON_RT_URL));
           const vehicles = await resp.json();
-          const nowMs = Date.now();
-          const twoH = nowMs + 2 * 3600 * 1000;
+          // Filter next 2h
+          const now = Date.now(), twoH = now + 2 * 3600 * 1000;
           const toBalti = [], toNomme = [];
           vehicles.forEach(v => {
-            if (v.next_stop === TRAIN_STOP_BALTI && v.from === TRAIN_STOP_NOMME) toBalti.push(v);
-            if (v.next_stop === TRAIN_STOP_NOMME && v.from === TRAIN_STOP_BALTI) toNomme.push(v);
+            if (v.next_stop === TRAIN_STOP_BALTI && v.from === TRAIN_STOP_NOMME && v.eta * 1000 <= twoH) toBalti.push(v);
+            if (v.next_stop === TRAIN_STOP_NOMME && v.from === TRAIN_STOP_BALTI && v.eta * 1000 <= twoH) toNomme.push(v);
           });
-          // Sort by ETA
           toBalti.sort((a,b)=>a.eta-b.eta);
           toNomme.sort((a,b)=>a.eta-b.eta);
-          this.trainsToBalti = toBalti.map(v=>({departure:new Date(v.time_departure),arrival:new Date(v.time_arrival)}));
-          this.trainsToNomme = toNomme.map(v=>({departure:new Date(v.time_departure),arrival:new Date(v.time_arrival)}));
+          this.trainsToBalti = toBalti.map(v=>({departure:new Date(v.fordeparture),arrival:new Date(v.forarrival)}));
+          this.trainsToNomme = toNomme.map(v=>({departure:new Date(v.baldeparture),arrival:new Date(v.balarrival)}));
+        },
+        async fetchTramStops() {
+          const res = await fetch(CORS(TRAM_STOPS_URL));
+          const txt = await res.text();
+          return txt.trim().split('\n').map(line => {
+            const [id,name] = line.split(',');
+            return { id: id.trim(), name: name.trim() };
+          });
         },
         async fetchTrams() {
-          // Helper to parse SIRI XML for a stop
-          const parseSiri = xml => {
-            const doc = new DOMParser().parseFromString(xml,'text/xml');
-            return Array.from(doc.querySelectorAll('StopEvent')).map(ev=>({
+          const stops = await this.fetchTramStops();
+          const balti = stops.find(s=>s.name === TRAM_STOP_BALTI_NAME);
+          const uni = stops.find(s=>s.name === TRAM_STOP_UNI_NAME);
+          if(!balti||!uni) throw new Error('Tram stops not found');
+          const [bxml,uxml] = await Promise.all([
+            fetch(CORS(SIRI_URL+balti.id)).then(r=>r.text()),
+            fetch(CORS(SIRI_URL+uni.id)).then(r=>r.text())
+          ]);
+          const parseSiri = xml=>{
+            const doc = new DOMParser().parseFromString(xml,'application/xml');
+            return Array.from(doc.querySelectorAll('StopEvent')).map(ev=>( {
               departure_time: ev.querySelector('ExpectedDepartureTime')?.textContent,
-              arrival_time: ev.querySelector('ExpectedArrivalTime')?.textContent,
+              arrival_time: ev.querySelector('ExpectedArrivalTime')?.textContent
             }));
           };
-          // Two legs
-          const [baltiXML, uniXML] = await Promise.all([
-            fetch(CORS_PROXY + encodeURIComponent(SIRI_URL + TRAM_STOP_BALTI)).then(r=>r.text()),
-            fetch(CORS_PROXY + encodeURIComponent(SIRI_URL + TRAM_STOP_UNI)).then(r=>r.text())
-          ]);
-          this.tramsToUni = parseSiri(baltiXML);
-          this.tramsToBalti = parseSiri(uniXML);
+          this.tramsToUni = parseSiri(bxml).slice(0,10);
+          this.tramsToBalti = parseSiri(uxml).slice(0,10);
         }
       },
       async mounted() {
         try {
-          await Promise.all([this.fetchTrains(), this.fetchTrams()]);
-        } catch (e) {
-          this.error = e.message;
-        } finally {
-          this.loading = false;
-        }
+          await Promise.all([this.fetchTrains(),this.fetchTrams()]);
+        } catch(e) { this.error = e.message }
+        finally { this.loading=false }
       }
     }).mount('#app');
   </script>
