@@ -16,6 +16,7 @@
 
   <script>
     const API_URL = 'https://web.peatus.ee/reitti/Tallinn%2C%20Tallinna%20linn%2C%20P%C3%B5hja-Tallinn%3A%3A59.440498%2C24.736954/N%C3%B5mme%2C%20Tallinna%20linn%2C%20N%C3%B5mme%3A%3A59.387452%2C24.686731?time=1749924043';
+    const PROXY = 'https://api.allorigins.win/raw?url=';
     const NOW = Date.now();
     const WINDOW_MS = 2 * 3600 * 1000; // two hours
 
@@ -25,7 +26,7 @@
       const listEl = document.getElementById('train-list');
       statusEl.textContent = 'Loading from API...';
       try {
-        const resp = await fetch(API_URL);
+        const resp = await fetch(PROXY + encodeURIComponent(API_URL));
         if (!resp.ok) throw new Error('Network response was not ok');
         const data = await resp.json();
         console.log('API data:', data);
