@@ -4,15 +4,15 @@
   <meta charset="UTF-8"/>
   <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
   <title>My Commute Planner</title>
-  <!-- Vue.js for reactive UI -->
-  <script src="https://unpkg.com/vue@3"></script>
+  <!-- Global UMD build of Vue -->
+  <script src="https://unpkg.com/vue@3/dist/vue.global.prod.js"></script>
   <!-- Tailwind CSS for styling -->
   <link href="https://cdn.jsdelivr.net/npm/tailwindcss@2.2.19/dist/tailwind.min.css" rel="stylesheet">
 </head>
 <body class="bg-gray-100">
   <div id="app" class="max-w-2xl mx-auto p-4 bg-white rounded-lg shadow">
     <h1 class="text-3xl font-bold mb-4">My Commute Planner</h1>
-    <p class="text-sm text-gray-600 mb-4">Showing next two hours from now</p>
+    <p class="text-sm text-gray-600 mb-4">Showing next two hours</p>
     <div v-if="loading" class="text-center">Loading schedules...</div>
     <div v-else>
       <div v-if="error" class="text-red-500 mb-4">Error: {{ error }}</div>
@@ -22,8 +22,8 @@
           <h2 class="text-xl font-semibold mb-2">Home → University</h2>
           <h3 class="font-medium">Train (Nõmme → Balti jaam)</h3>
           <ul class="list-disc list-inside mb-2">
-            <li v-for="d in homeToUniTrain" :key="d.departure_time">
-              {{ formatTime(d.departure_time) }} → {{ formatTime(d.arrival_time) }} <span class="text-gray-500">({{ d.headsign }})</span>
+            <li v-for="d in homeToUniTrain" :key="d.departure">
+              {{ formatTime(d.departure) }} → {{ formatTime(d.arrival) }} <span class="text-gray-500">({{ d.tripId }})</span>
             </li>
           </ul>
           <h3 class="font-medium">Tram (Balti jaam → Ülikool)</h3>
@@ -44,54 +44,117 @@
           </ul>
           <h3 class="font-medium">Train (Balti jaam → Nõmme)</h3>
           <ul class="list-disc list-inside">
-            <li v-for="d in uniToHomeTrain" :key="d.departure_time">
-              {{ formatTime(d.departure_time) }} → {{ formatTime(d.arrival_time) }} <span class="text-gray-500">({{ d.headsign }})</span>
+            <li v-for="d in uniToHomeTrain" :key="d.departure">
+              {{ formatTime(d.departure) }} → {{ formatTime(d.arrival) }} <span class="text-gray-500">({{ d.tripId }})</span>
             </li>
           </ul>
         </div>
       </div>
     </div>
   </div>
+
   <script>
-    const API_BASE_URL = 'https://your-api-domain.com/api';
-    const HOME = 'Nõmme', TRANSFER = 'Balti jaam', UNI = 'Tallinn Ülikool';
+    const TRAM_STOPS_URL = 'https://transport.tallinn.ee/gps.txt';
+    const SIRI_DEPARTURES_URL = 'https://transport.tallinn.ee/siri-stop-departures.php';
+    const TRAIN_MAP_URL = 'https://elron.ee/map_data.json';
+    const TRAIN_TRIP_URL = id => `https://elron.ee/live-map/trip/${id}`;
+    // Names of stops
+    const TRAIN_HOME = 'Nõmme';
+    const TRAIN_TRANSFER = 'Balti jaam';
+    const TRAM_TRANSFER = 'Balti jaam';
+    const TRAM_UNI = 'Tallinn Ülikool';
+
     const app = Vue.createApp({
-      data() { return {
-        homeToUniTrain: [], homeToUniTram: [],
-        uniToHomeTram: [], uniToHomeTrain: [],
-        loading: true, error: null
-      }},
+      data() {
+        return {
+          homeToUniTrain: [],
+          homeToUniTram: [],
+          uniToHomeTram: [],
+          uniToHomeTrain: [],
+          loading: false,
+          error: null,
+        };
+      },
       methods: {
-        async fetchStop(name) {
-          const r = await fetch(\`\${API_BASE_URL}/stops?search=\${name}\`);
-          const j = await r.json();
-          if (!j.stops?.length) throw new Error('Stop not found: '+name);
-          return j.stops[0].id;
+        formatTime(s) {
+          return new Date(s).toLocaleTimeString('et-EE', { hour: '2-digit', minute: '2-digit' });
         },
-        async fetchDeps(stopId, from, to) {
-          const r = await fetch(\`\${API_BASE_URL}/stop/\${stopId}/departures?from=\${from}&to=\${to}\`);
-          return (await r.json()).departures;
+        async fetchTramStops() {
+          const res = await fetch(TRAM_STOPS_URL);
+          const txt = await res.text();
+          return txt.trim().split('\n').map(line => {
+            const [id, name, lat, lon] = line.split(',');
+            return { id: id.trim(), name: name.trim() };
+          });
         },
-        fmt(t) { return new Date(t).toLocaleTimeString('et-EE',{hour:'2-digit',minute:'2-digit'}); },
-        async load() {
+        async getTramDepartures(stopId) {
+          const url = `${SIRI_DEPARTURES_URL}?stopid=${stopId}`;
+          const res = await fetch(url);
+          const xmlText = await res.text();
+          const xml = new DOMParser().parseFromString(xmlText, 'application/xml');
+          const events = [...xml.querySelectorAll('StopEvent')];
+          return events.map(ev => ({
+            departure_time: ev.querySelector('ExpectedDepartureTime')?.textContent,
+            arrival_time: ev.querySelector('ExpectedArrivalTime')?.textContent,
+            route_short_name: ev.querySelector('LineRef')?.textContent
+          }));
+        },
+        async fetchTrainVehicles() {
+          const res = await fetch(TRAIN_MAP_URL);
+          return await res.json(); // Array of live vehicles
+        },
+        async getTrainTrip(tripId) {
+          const res = await fetch(TRAIN_TRIP_URL(tripId));
+          return await res.json(); // { stopTimes: [ { stopName, departureTime, arrivalTime }, ... ] }
+        },
+        async loadSchedules() {
           this.loading = true;
-          const now = new Date(), later = new Date(now.getTime()+2e3*3600).toISOString(), nowISO = now.toISOString();
+          this.error = null;
           try {
-            const [h, x, u] = await Promise.all([this.fetchStop(HOME), this.fetchStop(TRANSFER), this.fetchStop(UNI)]);
-            const [t1, tr1, tr2, t2] = await Promise.all([
-              this.fetchDeps(h, nowISO, later),
-              this.fetchDeps(x, nowISO, later),
-              this.fetchDeps(u, nowISO, later),
-              this.fetchDeps(x, nowISO, later)
+            // 1. Tram stops
+            const stops = await this.fetchTramStops();
+            const balti = stops.find(s => s.name === TRAM_TRANSFER);
+            const uniStop = stops.find(s => s.name === TRAM_UNI);
+            if (!balti || !uniStop) throw new Error('Tram stops not found');
+            // 2. Tram departures
+            [ this.homeToUniTram, this.uniToHomeTram ] = await Promise.all([
+              this.getTramDepartures(balti.id),
+              this.getTramDepartures(uniStop.id)
             ]);
-            this.homeToUniTrain = t1; this.homeToUniTram = tr1;
-            this.uniToHomeTram = tr2; this.uniToHomeTrain = t2;
-          } catch(e) { this.error = e.message }
-          finally { this.loading = false }
+
+            // 3. Train vehicles
+            const vehicles = await this.fetchTrainVehicles();
+            // Filter trains heading towards Balti jaam then Nõmme
+            const forward = vehicles.filter(v => v.next_stop === TRAIN_TRANSFER && v.line === TRAIN_HOME);
+            const back = vehicles.filter(v => v.next_stop === TRAIN_HOME && v.line === TRAIN_TRANSFER);
+            // 4. For each, fetch trip details
+            const [forTrips, backTrips] = await Promise.all([
+              Promise.all(forward.map(v => this.getTrainTrip(v.trip_id))),
+              Promise.all(back.map(v => this.getTrainTrip(v.trip_id)))
+            ]);
+            // 5. Extract times
+            this.homeToUniTrain = forTrips.map(t => {
+              const dep = t.stopTimes.find(s => s.stopName === TRAIN_HOME);
+              const arr = t.stopTimes.find(s => s.stopName === TRAIN_TRANSFER);
+              return { departure: dep?.departureTime, arrival: arr?.arrivalTime, tripId: t.trip_id };
+            });
+            this.uniToHomeTrain = backTrips.map(t => {
+              const dep = t.stopTimes.find(s => s.stopName === TRAIN_TRANSFER);
+              const arr = t.stopTimes.find(s => s.stopName === TRAIN_HOME);
+              return { departure: dep?.departureTime, arrival: arr?.arrivalTime, tripId: t.trip_id };
+            });
+          } catch (e) {
+            this.error = e.message;
+          } finally {
+            this.loading = false;
+          }
         }
       },
-      mounted: function(){ this.load() }
-    }).mount('#app');
+      mounted() {
+        this.loadSchedules();
+      }
+    });
+    app.mount('#app');
   </script>
 </body>
 </html>
