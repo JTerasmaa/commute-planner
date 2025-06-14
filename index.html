@@ -18,13 +18,13 @@
         <h2 class="text-2xl mb-2">Elron Trains</h2>
         <h3 class="font-medium">From Nõmme</h3>
         <ul id="nomme-train" class="list-disc list-inside mb-4"></ul>
-        <h3 class="font-medium">From Balti jaam</h3>
+        <h3 class="font-medium">From Balti jaam (train station)</h3>
         <ul id="balti-train" class="list-disc list-inside"></ul>
       </div>
       <!-- Tram departures -->
       <div class="bg-white shadow rounded p-6">
         <h2 class="text-2xl mb-2">Tram #1</h2>
-        <h3 class="font-medium">From Balti jaam</h3>
+        <h3 class="font-medium">From Balti jaam (tram stop)</h3>
         <ul id="balti-tram" class="list-disc list-inside mb-4"></ul>
         <h3 class="font-medium">From Tallinna Ülikool</h3>
         <ul id="uni-tram" class="list-disc list-inside"></ul>
@@ -91,8 +91,8 @@
 
     document.addEventListener('DOMContentLoaded', () => {
       loadJSONP('Nõmme', 'train', 'cbNomTrain', 'nomme-train');
-      loadJSONP('Balti jaam', 'train', 'cbBaltiTrain', 'balti-train');
-      loadJSONP('Balti jaam', 'tram', 'cbBaltiTram', 'balti-tram');
+      loadJSONP('Balti jaam (train station)', 'train', 'cbBaltiTrain', 'balti-train');
+      loadJSONP('Balti jaam (tram stop)', 'tram', 'cbBaltiTram', 'balti-tram');
       loadJSONP('Tallinna Ülikool', 'tram', 'cbUniTram', 'uni-tram');
     });
   </script>
