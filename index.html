@@ -19,17 +19,17 @@
         <h3 class="font-medium">From Nõmme</h3>
         <ul id="nomme-list" class="list-disc list-inside mb-4"></ul>
 
-        <h3 class="font-medium">From Balti jaam</h3>
+        <h3 class="font-medium">From Balti jaam (train station)</h3>
         <ul id="balti-list" class="list-disc list-inside"></ul>
       </div>
 
       <!-- Tram departures -->
       <div class="bg-white rounded-lg shadow p-6">
         <h2 class="text-2xl font-semibold mb-2">Tram #1</h2>
-        <h3 class="font-medium">From Balti jaam</h3>
+        <h3 class="font-medium">From Balti jaam (train station)</h3>
         <ul id="tram-balti-list" class="list-disc list-inside mb-4"></ul>
 
-        <h3 class="font-medium">From Tallinn Ülikool</h3>
+        <h3 class="font-medium">From Tallinna Ülikool</h3>
         <ul id="tram-uni-list" class="list-disc list-inside"></ul>
       </div>
     </div>
@@ -99,8 +99,8 @@
         setStatus('Resolving stop IDs...');
         const [nommeId, baltiId, uniId] = await Promise.all([
           fetchStopId('Nõmme'),
-          fetchStopId('Balti jaam'),
-          fetchStopId('Tallinn Ülikool')
+          fetchStopId('Balti jaam (train station)'),
+          fetchStopId('Tallinna Ülikool')
         ]);
 
         setStatus('Fetching departures...');
