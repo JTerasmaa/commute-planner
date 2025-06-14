@@ -6,48 +6,31 @@
   <title>My Commute Planner</title>
   <!-- Tailwind CSS -->
   <link href="https://cdn.jsdelivr.net/npm/tailwindcss@2.2.19/dist/tailwind.min.css" rel="stylesheet" />
-  <!-- Vue UMD -->
-  <script src="https://unpkg.com/vue@3/dist/vue.global.prod.js"></script>
 </head>
 <body class="bg-gray-100">
-  <div id="app" class="max-w-4xl mx-auto p-6">
+  <div class="max-w-4xl mx-auto p-6">
     <h1 class="text-3xl font-bold mb-4">My Commute Planner</h1>
-    <p class="text-gray-600 mb-4">Showing departures for the next 2 hours</p>
-
-    <div v-if="error" class="text-red-500 mb-4">Error: {{ error }}</div>
-    <div v-else-if="loading" class="mb-4">Loading times...</div>
-
-    <div v-else class="grid grid-cols-1 md:grid-cols-2 gap-6">
+    <p id="status" class="text-gray-600 mb-4">Loading departures for the next 2 hours...</p>
+    <div id="error" class="text-red-500 mb-4"></div>
+    <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
       <!-- Train departures -->
       <div class="bg-white rounded-lg shadow p-6">
         <h2 class="text-2xl font-semibold mb-2">Elron Trains</h2>
         <h3 class="font-medium">From Nõmme</h3>
-        <ul class="list-disc list-inside mb-4">
-          <li v-for="t in trainsFromNomme" :key="t">{{ t }}</li>
-          <li v-if="!trainsFromNomme.length" class="text-gray-500">No departures</li>
-        </ul>
+        <ul id="nomme-list" class="list-disc list-inside mb-4"></ul>
 
         <h3 class="font-medium">From Balti jaam</h3>
-        <ul class="list-disc list-inside">
-          <li v-for="t in trainsFromBalti" :key="t">{{ t }}</li>
-          <li v-if="!trainsFromBalti.length" class="text-gray-500">No departures</li>
-        </ul>
+        <ul id="balti-list" class="list-disc list-inside"></ul>
       </div>
 
       <!-- Tram departures -->
       <div class="bg-white rounded-lg shadow p-6">
         <h2 class="text-2xl font-semibold mb-2">Tram #1</h2>
         <h3 class="font-medium">From Balti jaam</h3>
-        <ul class="list-disc list-inside mb-4">
-          <li v-for="t in tramsFromBalti" :key="t">{{ t }}</li>
-          <li v-if="!tramsFromBalti.length" class="text-gray-500">No departures</li>
-        </ul>
+        <ul id="tram-balti-list" class="list-disc list-inside mb-4"></ul>
 
         <h3 class="font-medium">From Tallinn Ülikool</h3>
-        <ul class="list-disc list-inside">
-          <li v-for="t in tramsFromUni" :key="t">{{ t }}</li>
-          <li v-if="!tramsFromUni.length" class="text-gray-500">No departures</li>
-        </ul>
+        <ul id="tram-uni-list" class="list-disc list-inside"></ul>
       </div>
     </div>
   </div>
@@ -93,37 +76,40 @@
       return results;
     }
 
-    Vue.createApp({
-      data() {
-        return {
-          trainsFromNomme: [],
-          trainsFromBalti: [],
-          tramsFromBalti: [],
-          tramsFromUni: [],
-          loading: true,
-          error: null,
-        };
-      },
-      async mounted() {
-        try {
-          [
-            this.trainsFromNomme,
-            this.trainsFromBalti,
-            this.tramsFromBalti,
-            this.tramsFromUni
-          ] = await Promise.all([
-            fetchDepartures('Nõmme', null),
-            fetchDepartures('Balti jaam', null),
-            fetchDepartures('Balti jaam', '1'),
-            fetchDepartures('Tallinn Ülikool', '1')
-          ]);
-        } catch (err) {
-          this.error = err.message;
-        } finally {
-          this.loading = false;
-        }
+    function fillList(id, items) {
+      const ul = document.getElementById(id);
+      if (items.length) {
+        items.forEach(time => {
+          const li = document.createElement('li');
+          li.textContent = time;
+          ul.appendChild(li);
+        });
+      } else {
+        const li = document.createElement('li');
+        li.textContent = 'No upcoming departures';
+        li.className = 'text-gray-500';
+        ul.appendChild(li);
       }
-    }).mount('#app');
+    }
+
+    document.addEventListener('DOMContentLoaded', async () => {
+      try {
+        const [nomme, balti, tramBalti, tramUni] = await Promise.all([
+          fetchDepartures('Nõmme', null),
+          fetchDepartures('Balti jaam', null),
+          fetchDepartures('Balti jaam', '1'),
+          fetchDepartures('Tallinn Ülikool', '1')
+        ]);
+        fillList('nomme-list', nomme);
+        fillList('balti-list', balti);
+        fillList('tram-balti-list', tramBalti);
+        fillList('tram-uni-list', tramUni);
+        document.getElementById('status').textContent = '';
+      } catch (err) {
+        document.getElementById('error').textContent = err.message;
+        document.getElementById('status').textContent = '';
+      }
+    });
   </script>
 </body>
 </html>
