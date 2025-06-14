@@ -23,17 +23,13 @@
         <h2 class="text-2xl font-semibold mb-2">Elron Trains</h2>
         <h3 class="font-medium">From Nõmme</h3>
         <ul class="list-disc list-inside mb-4">
-          <li v-for="t in trainsFromNomme" :key="t">
-            {{ t }}
-          </li>
+          <li v-for="t in trainsFromNomme" :key="t">{{ t }}</li>
           <li v-if="!trainsFromNomme.length" class="text-gray-500">No departures</li>
         </ul>
 
         <h3 class="font-medium">From Balti jaam</h3>
         <ul class="list-disc list-inside">
-          <li v-for="t in trainsFromBalti" :key="t">
-            {{ t }}
-          </li>
+          <li v-for="t in trainsFromBalti" :key="t">{{ t }}</li>
           <li v-if="!trainsFromBalti.length" class="text-gray-500">No departures</li>
         </ul>
       </div>
@@ -43,17 +39,13 @@
         <h2 class="text-2xl font-semibold mb-2">Tram #1</h2>
         <h3 class="font-medium">From Balti jaam</h3>
         <ul class="list-disc list-inside mb-4">
-          <li v-for="t in tramsFromBalti" :key="t">
-            {{ t }}
-          </li>
+          <li v-for="t in tramsFromBalti" :key="t">{{ t }}</li>
           <li v-if="!tramsFromBalti.length" class="text-gray-500">No departures</li>
         </ul>
 
         <h3 class="font-medium">From Tallinn Ülikool</h3>
         <ul class="list-disc list-inside">
-          <li v-for="t in tramsFromUni" :key="t">
-            {{ t }}
-          </li>
+          <li v-for="t in tramsFromUni" :key="t">{{ t }}</li>
           <li v-if="!tramsFromUni.length" class="text-gray-500">No departures</li>
         </ul>
       </div>
@@ -62,12 +54,9 @@
 
   <script>
     const CORS = url => `https://api.allorigins.win/raw?url=${encodeURIComponent(url)}`;
-    // Elron stop departures API
     const ELRON_API = 'https://api1.elron.ee/index.php/soiduplaan/peatus/';
-    // Tallinn tram SIRI API
     const TRAM_STOPS_URL = 'https://transport.tallinn.ee/gps.txt';
     const TRAM_SIRI = 'https://transport.tallinn.ee/siri-stop-departures.php?stopid=';
-    // Station names
     const TRAIN_STOP_NOMME = 'Nõmme';
     const TRAIN_STOP_BALTI = 'Balti jaam';
     const TRAM_STOP_BALTI_NAME = 'Balti jaam';
@@ -85,54 +74,62 @@
         };
       },
       methods: {
-        formatTimeHHMM(timeStr) {
-          // timeStr from API: "HH:MM"
-          return timeStr;
-        },
+        formatTimeHHMM(timeStr) { return timeStr; },
         async fetchTrainDepartures(stopName) {
-          const url = `${ELRON_API}${encodeURIComponent(stopName)}`;
-          const resp = await fetch(CORS(url));
-          const json = await resp.json();
-          if (json.status !== 1 || !Array.isArray(json.data)) {
-            throw new Error(`No data for train stop: ${stopName}`);
+          try {
+            const url = `${ELRON_API}${encodeURIComponent(stopName)}`;
+            const resp = await fetch(CORS(url));
+            if (!resp.ok) throw new Error('Train API fetch failed');
+            const json = await resp.json();
+            if (json.status !== 1 || !Array.isArray(json.data)) throw new Error(`No data for ${stopName}`);
+            const now = Date.now(), cutoff = now + 2 * 3600 * 1000;
+            return json.data
+              .map(item => item.tegelik_aeg || item.plaaniline_aeg)
+              .map(t => {
+                const [hh, mm] = t.split(':').map(Number);
+                const dt = new Date(); dt.setHours(hh, mm, 0, 0);
+                return dt;
+              })
+              .filter(dt => dt.getTime() >= now && dt.getTime() <= cutoff)
+              .map(dt => dt.toLocaleTimeString('et-EE', {hour:'2-digit',minute:'2-digit'}));
+          } catch (e) {
+            console.error(e);
+            return [];
           }
-          // json.data = [{peatus, plaaniline_aeg, tegelik_aeg}, ...]
-          const now = new Date();
-          const cutoff = now.getTime() + 2 * 3600 * 1000;
-          return json.data
-            .map(item => item.tegelik_aeg || item.plaaniline_aeg)
-            .map(t => {
-              const [hh, mm] = t.split(':').map(Number);
-              const dt = new Date(now);
-              dt.setHours(hh, mm, 0, 0);
-              // if time has passed today, skip
-              return dt;
-            })
-            .filter(dt => dt.getTime() >= now.getTime() && dt.getTime() <= cutoff)
-            .map(dt => this.formatTimeHHMM(dt.toLocaleTimeString('et-EE', {hour:'2-digit',minute:'2-digit'})));
         },
         async fetchTramStops() {
-          const res = await fetch(CORS(TRAM_STOPS_URL));
-          const txt = await res.text();
-          return txt.trim().split('\n').map(line => {
-            const [id,name] = line.split(','); return {id: id.trim(), name: name.trim()};
-          });
+          try {
+            const res = await fetch(CORS(TRAM_STOPS_URL));
+            if (!res.ok) throw new Error('Failed to fetch tram stops');
+            const txt = await res.text();
+            return txt.trim().split('\n').map(line => {
+              const parts = line.split(',');
+              return { id: parts[0].trim(), name: parts[1].trim() };
+            });
+          } catch (e) {
+            console.error(e);
+            return [];
+          }
         },
         async fetchTramDepartures(stopName) {
-          const stops = await this.fetchTramStops();
-          const stop = stops.find(s => s.name === stopName);
-          if (!stop) throw new Error(`Tram stop not found: ${stopName}`);
-          const xmlText = await fetch(CORS(`${TRAM_SIRI}${stop.id}`)).then(r=>r.text());
-          const doc = new DOMParser().parseFromString(xmlText,'application/xml');
-          const now = new Date().getTime();
-          const cutoff = now + 2 * 3600 * 1000;
-          return Array.from(doc.querySelectorAll('StopEvent')).map(ev => {
-            const t = ev.querySelector('ExpectedDepartureTime')?.textContent;
-            const dt = new Date(t).getTime();
-            return {dt, str: new Date(t).toLocaleTimeString('et-EE',{hour:'2-digit',minute:'2-digit'})};
-          })
-          .filter(o=>o.dt>=now && o.dt<=cutoff)
-          .map(o=>o.str);
+          try {
+            const stops = await this.fetchTramStops();
+            const stop = stops.find(s => s.name === stopName);
+            if (!stop) throw new Error(`Stop not found: ${stopName}`);
+            const xmlText = await fetch(CORS(`${TRAM_SIRI}${stop.id}`)).then(r => r.text());
+            const doc = new DOMParser().parseFromString(xmlText, 'application/xml');
+            const now = Date.now(), cutoff = now + 2 * 3600 * 1000;
+            return Array.from(doc.querySelectorAll('StopEvent'))
+              .map(ev => ev.querySelector('ExpectedDepartureTime')?.textContent)
+              .filter(t => {
+                const dt = new Date(t).getTime();
+                return dt >= now && dt <= cutoff;
+              })
+              .map(t => new Date(t).toLocaleTimeString('et-EE',{hour:'2-digit',minute:'2-digit'}));
+          } catch (e) {
+            console.error(e);
+            return [];
+          }
         }
       },
       async mounted() {
