@@ -1,10 +1,10 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Next Elron Trains from Tallinn</title>
-  <link href="https://cdn.jsdelivr.net/npm/tailwindcss@2.2.19/dist/tailwind.min.css" rel="stylesheet" />
+  <link href="https://cdn.jsdelivr.net/npm/tailwindcss@2.2.19/dist/tailwind.min.css" rel="stylesheet">
 </head>
 <body class="bg-gray-100">
   <div class="max-w-md mx-auto p-6">
@@ -15,51 +15,69 @@
   </div>
 
   <script>
-    // Fetch JSON via AllOrigins to bypass CORS
     const STOP = 'Tallinn';
     const MODE = 'train';
-    const API_URL = `https://peatus.ee/api/departures?stop=${encodeURIComponent(STOP)}&mode=${MODE}`;
-    const PROXY = 'https://api.allorigins.win/raw?url=';
-    const WINDOW_MS = 2 * 3600 * 1000; // 2 hours
+    const WINDOW_MS = 2 * 3600 * 1000;
     const now = Date.now();
+    
+    function loadJSONP(stop, mode, cbName, listId) {
+      // define global callback
+      window[cbName] = function(data) {
+        cleanup();
+        render(data, listId);
+      };
+      
+      function cleanup() {
+        delete window[cbName];
+        document.body.removeChild(script);
+      }
+      
+      const script = document.createElement('script');
+      script.src = `https://peatus.ee/api/departures?stop=${encodeURIComponent(stop)}&mode=${mode}&callback=${cbName}`;
+      script.onerror = () => {
+        cleanup();
+        document.getElementById('error').textContent = `Failed to load departures for ${stop}`;
+        document.getElementById('status').textContent = '';
+      };
+      document.body.appendChild(script);
+    }
 
-    async function loadDepartures() {
+    function render(data, listId) {
       const statusEl = document.getElementById('status');
       const errorEl = document.getElementById('error');
-      const listEl = document.getElementById('train-list');
-      statusEl.textContent = 'Fetching JSON departures...';
-      try {
-        const resp = await fetch(PROXY + encodeURIComponent(API_URL));
-        if (!resp.ok) throw new Error('Network error ' + resp.status);
-        const data = await resp.json();
-        if (!Array.isArray(data)) throw new Error('Invalid JSON format');
-        // Filter next 2h and dedupe times
-        const times = [...new Set(
-          data.map(item => item.time)
-              .filter(t => {
-                const [h,m] = t.split(':').map(Number);
-                const dt = new Date(now);
-                dt.setHours(h, m, 0, 0);
-                return dt.getTime() >= now && dt.getTime() <= now + WINDOW_MS;
-              })
-        )];
-        // Render
-        listEl.innerHTML = '';
-        if (times.length) {
-          times.forEach(t => {
-            const li = document.createElement('li'); li.textContent = t; listEl.appendChild(li);
-          });
-        } else {
-          const li = document.createElement('li'); li.textContent = 'No upcoming departures'; li.className='text-gray-500'; listEl.appendChild(li);
-        }
-        statusEl.textContent = '';
-      } catch (e) {
-        statusEl.textContent = '';
-        errorEl.textContent = e.message;
+      const listEl = document.getElementById(listId);
+      statusEl.textContent = '';
+      listEl.innerHTML = '';
+      if (!Array.isArray(data)) {
+        errorEl.textContent = 'Invalid data format';
+        return;
+      }
+      const times = [...new Set(
+        data.map(item => item.time)
+            .filter(t => {
+              const [h,m] = t.split(':').map(Number);
+              const dt = new Date(now);
+              dt.setHours(h, m, 0, 0);
+              return dt.getTime() >= now && dt.getTime() <= now + WINDOW_MS;
+            })
+      )];
+      if (times.length) {
+        times.forEach(t => {
+          const li = document.createElement('li');
+          li.textContent = t;
+          listEl.appendChild(li);
+        });
+      } else {
+        const li = document.createElement('li');
+        li.textContent = 'No upcoming departures';
+        li.className = 'text-gray-500';
+        listEl.appendChild(li);
       }
     }
 
-    document.addEventListener('DOMContentLoaded', loadDepartures);
+    document.addEventListener('DOMContentLoaded', () => {
+      loadJSONP(STOP, MODE, 'cbPeatus', 'train-list');
+    });
   </script>
 </body>
 </html>
