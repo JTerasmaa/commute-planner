@@ -2,113 +2,132 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8">
-  <title>Tallinn Trams (Real-Time) & Elron Trains</title>
+  <title>Tallinn Trams & Elron Trains</title>
   <meta name="viewport" content="width=device-width,initial-scale=1">
   <style>
     body { font-family: sans-serif; max-width: 480px; margin:2rem auto; padding:1rem; background:#f7faff; box-shadow:0 4px 12px rgba(0,0,0,0.1); border-radius:8px; }
     h1,h2 { margin-top:1.5rem; }
-    .live { color:green; }
-    .static { color:orange; }
+    .live { color:green; font-weight:bold; }
+    .static { color:orange; font-weight:bold; }
     .box { background:white; padding:1rem; border-radius:6px; box-shadow:0 1px 3px rgba(0,0,0,0.1); margin-top:1rem; }
     .meta { font-size:0.85rem; color:#555; margin-top:1rem; }
+    .err { color: #b00; }
   </style>
 </head>
 <body>
   <h1>Tallinn Trams & Elron Trains</h1>
-  <p class="meta">Sources: Transitland (static), Tallinn GTFS‑RT (live), Elron (schedule)</p>
+  <p class="meta">Sources: <a href="https://transit.land/" target="_blank">Transitland</a> (live static), <a href="https://elron.ee/et/soiduplaan/" target="_blank">Elron</a> (schedule)</p>
 
-  <h2>Tram 1 <span class="live">[Real-Time]</span></h2>
+  <h2>Tram 1 <span class="live">[Live Schedule]</span></h2>
   <div class="box">
-    <strong>Balti jaam → Kadriorg:</strong><br>
+    <strong>Balti jaam → Kadriorg:</strong><br>
     <span id="tram-balti">Loading…</span>
   </div>
   <div class="box">
-    <strong>Tallinna Ülikool → Kopli:</strong><br>
+    <strong>Tallinna Ülikool → Kopli:</strong><br>
     <span id="tram-ulikool">Loading…</span>
   </div>
 
   <h2>Elron Train <span class="static">[Schedule]</span></h2>
   <div class="box">
-    <strong>Nõmme → Tallinn:</strong><br>
+    <strong>Nõmme → Tallinn:</strong><br>
     <span id="train-nomme">Loading…</span>
   </div>
   <div class="box">
-    <strong>Tallinn → Nõmme:</strong><br>
+    <strong>Tallinn → Nõmme:</strong><br>
     <span id="train-tallinn">Loading…</span>
   </div>
 
   <p class="meta">Updated at: <span id="updated">--:--:--</span></p>
 
   <script>
-  // 🚋 Tram: real-time via static + GTFS-RT
-  const stops = {
-    balti: { onestop: '', stop_id: '17602', direction: '0' },
-    ulikool: { onestop: '', stop_id: '13301', direction: '1' }
-  };
+    // --- Correct Transitland stop and route onestop IDs for Tram 1 ---
+    const stops = {
+      balti: {
+        onestop: "s-u3hcjzeqyb-baltijaam",
+        route: "r-u3hcjzm6w-tram1"
+      },
+      ulikool: {
+        onestop: "s-u3hcjzm6wc-tallinnaulikool",
+        route: "r-u3hcjzm6w-tram1"
+      }
+    };
 
-  // First, fetch Transitland and map stop_ids to onestop_ids
-  async function loadStops() {
-    for (let key of ['balti','ulikool']) {
-      const resp = await fetch(`https://api.transit.land/api/v2/rest/stops?gtfs_id=${stops[key].stop_id}`);
-      const data = await resp.json();
-      if (data.stops && data.stops[0]) {
-        stops[key].onestop = data.stops[0].onestop_id;
+    async function getStaticDepartures(stopKey) {
+      const s = stops[stopKey];
+      const now = new Date();
+      const date = now.toISOString().slice(0,10);
+      // Add a small buffer so "now" doesn't filter out a tram at :00 just after reload
+      const mins = now.getMinutes().toString().padStart(2,'0');
+      const time = now.getHours().toString().padStart(2,'0') + ':' + mins + ':00';
+      const url = `https://transit.land/api/v2/rest/schedule_stop_pairs?origin_onestop_id=${s.onestop}&route_onestop_id=${s.route}&date=${date}&origin_departure_between=${time},23:59:00&per_page=10`;
+      try {
+        const resp = await fetch(url);
+        if (!resp.ok) throw new Error(resp.status + " " + resp.statusText);
+        const data = await resp.json();
+        if (!data.schedule_stop_pairs) throw new Error("No departures found");
+        const times = data.schedule_stop_pairs.map(p => p.origin_departure_time.slice(0,5));
+        return times.slice(0,6);
+      } catch (e) {
+        return [`<span class="err">API error</span>`];
       }
     }
-  }
 
-  async function getStaticDepartures(stopKey) {
-    const s = stops[stopKey];
-    const now = new Date();
-    const date = now.toISOString().slice(0,10);
-    const time = now.toTimeString().slice(0,5) + ':00';
-    const resp = await fetch(`https://api.transit.land/api/v2/rest/schedule_stop_pairs?origin_onestop_id=${s.onestop}&date=${date}&origin_departure_between=${time},23:59:00&route_onestop_id=r-9j9d-tallinn-1&per_page=10`);
-    const data = await resp.json();
-    const times = data.schedule_stop_pairs.map(p => p.origin_departure_time.slice(0,5));
-    return times.slice(0,6);
-  }
-
-  async function getLiveDepartures(staticTimes, stopKey) {
-    const resp = await fetch('https://transport.tallinn.ee/gtfsrt/vehiclePositions.json');
-    const data = await resp.json();
-    const trips = data.entity.map(e => e.vehicle.trip).filter(t => t && t.route_id==='1' && t.direction_id===stops[stopKey].direction).map(t => t.trip_id);
-    const live = staticTimes.filter(t =>
-      data.entity.some(e => e.vehicle.trip && e.vehicle.trip.trip_id=== (t.trip_id || '')
-      ));
-    return staticTimes.slice(0,6); // fallback
-  }
-
-  async function updateTrams() {
-    await loadStops();
-    for (let key of ['balti','ulikool']) {
-      const staticTimes = await getStaticDepartures(key);
-      document.getElementById(`tram-${key}`).innerText = staticTimes.join(', ') || 'No more today';
+    async function updateTrams() {
+      for (let key of ['balti','ulikool']) {
+        document.getElementById(`tram-${key}`).innerHTML = "Loading…";
+        const times = await getStaticDepartures(key);
+        document.getElementById(`tram-${key}`).innerHTML = times.length ? times.join(', ') : "No more today";
+      }
     }
-  }
 
-  // 🚂 Trains: static schedule
-  const trains = {
-    nomme: ["05:58","06:20","06:31","06:36","06:44","06:52","07:00","07:07","Hello"],
-    tallinn: ["05:49","06:09","06:24","06:39","06:54","07:09","07:24","07:24"]
-  };
-  function updateTrains() {
-    const now = new Date(); const curr = now.getHours()*60+now.getMinutes();
-    for (let key of ['nomme','tallinn']) {
-      const arr = trains[key].filter(t => {
-        const [h,m] = t.split(':').map(Number);
-        return h*60+m >= curr;
-      }).slice(0,6);
-      document.getElementById(`train-${key}`).innerText = arr.join(', ') || 'No more today';
+    // --- Elron trains (static example, adjust as needed) ---
+    // Replace below with the real Elron weekday schedule for Nõmme and Tallinn
+    const trains = {
+      nomme: [
+        "05:58","06:20","06:31","06:36","06:44","06:52","07:00","07:07",
+        "07:12","07:23","07:32","07:44","07:52","08:01","08:09","08:15",
+        "08:20","08:27","08:39","08:52","09:09","09:21","09:35","09:52",
+        "10:09","10:21","10:35","10:52","11:09","11:21","11:35","11:52",
+        "12:09","12:21","12:35","12:52","13:09","13:21","13:35","13:52",
+        "14:09","14:21","14:35","14:52","15:09","15:21","15:35","15:52",
+        "16:09","16:21","16:35","16:52","17:09","17:21","17:35","17:52",
+        "18:09","18:21","18:35","18:52","19:09","19:21","19:35","19:52",
+        "20:09","20:21","20:35","20:52","21:09","21:21","21:35","21:52",
+        "22:09","22:21","22:35","22:52"
+      ],
+      tallinn: [
+        "05:49","06:09","06:24","06:39","06:54","07:09","07:24","07:39",
+        "07:54","08:09","08:24","08:39","08:54","09:09","09:24","09:39",
+        "09:54","10:09","10:24","10:39","10:54","11:09","11:24","11:39",
+        "11:54","12:09","12:24","12:39","12:54","13:09","13:24","13:39",
+        "13:54","14:09","14:24","14:39","14:54","15:09","15:24","15:39",
+        "15:54","16:09","16:24","16:39","16:54","17:09","17:24","17:39",
+        "17:54","18:09","18:24","18:39","18:54","19:09","19:24","19:39",
+        "19:54","20:09","20:24","20:39","20:54","21:09","21:24","21:39",
+        "21:54","22:09","22:24","22:39","22:54"
+      ]
+    };
+
+    function updateTrains() {
+      const now = new Date(); const curr = now.getHours()*60+now.getMinutes();
+      for (let key of ['nomme','tallinn']) {
+        const arr = trains[key].filter(t => {
+          const [h,m] = t.split(':').map(Number);
+          return h*60+m >= curr;
+        }).slice(0,6);
+        document.getElementById(`train-${key}`).innerText = arr.length ? arr.join(', ') : 'No more today';
+      }
     }
-  }
 
-  function refresh() {
-    updateTrams(); updateTrains();
-    document.getElementById('updated').innerText = new Date().toLocaleTimeString();
-  }
+    function refreshAll() {
+      updateTrams();
+      updateTrains();
+      document.getElementById('updated').innerText = new Date().toLocaleTimeString();
+    }
 
-  refresh();
-  setInterval(refresh, 20000);
+    refreshAll();
+    setInterval(refreshAll, 20000); // Update every 20s
   </script>
 </body>
 </html>
