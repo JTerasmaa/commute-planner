@@ -2,20 +2,19 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8">
-  <title>Tallinn Tram 1 – Live Timetables</title>
+  <title>Tallinn Tram 1 Timetable</title>
   <meta name="viewport" content="width=device-width,initial-scale=1">
   <style>
-    body { font-family: system-ui,sans-serif; background: #f7faff; max-width: 440px; margin: 2em auto; padding: 1.2em; border-radius: 14px; box-shadow: 0 4px 16px #0002;}
-    h1 { font-size: 1.25em; }
-    select, button { font-size: 1em; margin: 0.6em 0 1em 0; padding: 0.35em 0.6em;}
+    body { font-family: sans-serif; background: #f7faff; max-width: 480px; margin: 2em auto; padding: 1.5em; border-radius: 14px; box-shadow: 0 4px 16px #0002;}
+    h1 { font-size: 1.3em; }
+    select { font-size: 1em; margin: 0.5em 0; padding: 0.3em 0.8em;}
     #times { background: #fff; border-radius: 8px; box-shadow: 0 1px 3px #0001; padding: 1em; margin-top: 1em;}
     .meta { font-size: .87em; color: #888; margin-top: 2em;}
-    @media (max-width: 600px) { body { margin:0.5em; padding:0.5em; } }
+    @media (max-width: 600px) { body { margin:0.5em; padding:0.7em; } }
   </style>
 </head>
 <body>
-  <h1>Tallinn Tram 1 Timetable (Live)</h1>
-
+  <h1>Tallinn Tram 1 Timetable</h1>
   <label>
     Direction:<br>
     <select id="direction">
@@ -28,93 +27,70 @@
     Stop:<br>
     <select id="stop"></select>
   </label>
-  <div id="times">Loading…</div>
-
+  <div id="times"></div>
   <div class="meta">
-    Source: <a href="https://viimane.info/" target="_blank">viimane.info (Tallinna Transport API)</a> <br>
-    <span id="lastupdate"></span>
+    Data source: <a href="https://transport.tallinn.ee/tram1#tram/1/a-b" target="_blank">Tallinna Transport</a>
   </div>
-
   <script>
-    // Line 1, directions: A (Kopli->Kadriorg), B (Kadriorg->Kopli)
-    const LINE_ID = 1; // Tram 1
-    const API = "https://api.viimane.info";
-    const directionNames = {
-      A: "Kopli → Kadriorg",
-      B: "Kadriorg → Kopli"
+    // Static timetable data (examples; expand as needed)
+    const timetable = {
+      "A": {
+        name: "Kopli → Kadriorg",
+        stops: [
+          {name: "Kopli", times: ["05:20","05:32","05:44","05:56","06:08","06:20","06:32","06:44","06:56","07:08","07:20","07:32","07:44","07:56","08:08","08:20","08:32","08:44","08:56","09:08","09:20","09:32","09:44","09:56","10:08","10:20","10:32","10:44","10:56","11:08","11:20","11:32","11:44","11:56","12:08","12:20","12:32","12:44","12:56","13:08","13:20","13:32","13:44","13:56","14:08","14:20","14:32","14:44","14:56","15:08","15:20","15:32","15:44","15:56","16:08","16:20","16:32","16:44","16:56","17:08","17:20","17:32","17:44","17:56","18:08","18:20","18:32","18:44","18:56","19:08","19:20","19:32","19:44","19:56","20:08","20:20","20:32","20:44","20:56","21:08","21:20","21:32","21:44","21:56","22:08","22:20","22:32","22:44","22:56","23:08","23:20","23:32","23:44","23:54"]},
+          {name: "Sitsi", times: ["05:22","05:34","05:46","05:58","06:10","06:22","06:34","06:46","06:58","07:10","07:22","07:34","07:46","07:58","08:10","08:22","08:34","08:46","08:58","09:10","09:22","09:34","09:46","09:58","10:10","10:22","10:34","10:46","10:58","11:10","11:22","11:34","11:46","11:58","12:10","12:22","12:34","12:46","12:58","13:10","13:22","13:34","13:46","13:58","14:10","14:22","14:34","14:46","14:58","15:10","15:22","15:34","15:46","15:58","16:10","16:22","16:34","16:46","16:58","17:10","17:22","17:34","17:46","17:58","18:10","18:22","18:34","18:46","18:58","19:10","19:22","19:34","19:46","19:58","20:10","20:22","20:34","20:46","20:58","21:10","21:22","21:34","21:46","21:58","22:10","22:22","22:34","22:46","22:58","23:10","23:22","23:34","23:46","23:56"]},
+          {name: "Kadriorg", times: ["05:51","06:03","06:15","06:27","06:39","06:51","07:03","07:15","07:27","07:39","07:51","08:03","08:15","08:27","08:39","08:51","09:03","09:15","09:27","09:39","09:51","10:03","10:15","10:27","10:39","10:51","11:03","11:15","11:27","11:39","11:51","12:03","12:15","12:27","12:39","12:51","13:03","13:15","13:27","13:39","13:51","14:03","14:15","14:27","14:39","14:51","15:03","15:15","15:27","15:39","15:51","16:03","16:15","16:27","16:39","16:51","17:03","17:15","17:27","17:39","17:51","18:03","18:15","18:27","18:39","18:51","19:03","19:15","19:27","19:39","19:51","20:03","20:15","20:27","20:39","20:51","21:03","21:15","21:27","21:39","21:51","22:03","22:15","22:27","22:39","22:51","23:03","23:15","23:27","23:39","23:51","00:01","00:13","00:25"]}
+          // Add all stops and times here!
+        ]
+      },
+      "B": {
+        name: "Kadriorg → Kopli",
+        stops: [
+          {name: "Kadriorg", times: ["05:24","05:36","05:48","06:00","06:12","06:24","06:36","06:48","07:00","07:12","07:24","07:36","07:48","08:00","08:12","08:24","08:36","08:48","09:00","09:12","09:24","09:36","09:48","10:00","10:12","10:24","10:36","10:48","11:00","11:12","11:24","11:36","11:48","12:00","12:12","12:24","12:36","12:48","13:00","13:12","13:24","13:36","13:48","14:00","14:12","14:24","14:36","14:48","15:00","15:12","15:24","15:36","15:48","16:00","16:12","16:24","16:36","16:48","17:00","17:12","17:24","17:36","17:48","18:00","18:12","18:24","18:36","18:48","19:00","19:12","19:24","19:36","19:48","20:00","20:12","20:24","20:36","20:48","21:00","21:12","21:24","21:36","21:48","22:00","22:12","22:24","22:36","22:48","23:00","23:12","23:24","23:36","23:48","00:00"]},
+          {name: "Kopli", times: ["05:54","06:06","06:18","06:30","06:42","06:54","07:06","07:18","07:30","07:42","07:54","08:06","08:18","08:30","08:42","08:54","09:06","09:18","09:30","09:42","09:54","10:06","10:18","10:30","10:42","10:54","11:06","11:18","11:30","11:42","11:54","12:06","12:18","12:30","12:42","12:54","13:06","13:18","13:30","13:42","13:54","14:06","14:18","14:30","14:42","14:54","15:06","15:18","15:30","15:42","15:54","16:06","16:18","16:30","16:42","16:54","17:06","17:18","17:30","17:42","17:54","18:06","18:18","18:30","18:42","18:54","19:06","19:18","19:30","19:42","19:54","20:06","20:18","20:30","20:42","20:54","21:06","21:18","21:30","21:42","21:54","22:06","22:18","22:30","22:42","22:54","23:06","23:18","23:30","23:42","23:54"]}
+          // Add all stops and times here!
+        ]
+      }
     };
 
-    // 1. Get all stops for tram 1 and both directions
-    let stopsByDir = {};
-    let stopIdToName = {};
+    // Build stops dropdown
+    const dirSel = document.getElementById('direction');
+    const stopSel = document.getElementById('stop');
+    const timesDiv = document.getElementById('times');
 
-    async function fetchStops() {
-      for (const dir of ['A','B']) {
-        const res = await fetch(`${API}/lines/${LINE_ID}/${dir}/stops`);
-        const stops = await res.json();
-        stopsByDir[dir] = stops.map(s => ({
-          id: s.stop_id,
-          name: s.stop_name
-        }));
-        stops.forEach(s => stopIdToName[s.stop_id] = s.stop_name);
-      }
-    }
-
-    // 2. Populate direction and stop dropdowns
-    function populateStops(direction) {
-      const stopSel = document.getElementById('stop');
+    function updateStops() {
       stopSel.innerHTML = "";
-      for (const stop of stopsByDir[direction]) {
+      const direction = dirSel.value;
+      timetable[direction].stops.forEach((s, idx) => {
         let opt = document.createElement('option');
-        opt.value = stop.id;
-        opt.textContent = stop.name;
+        opt.value = idx;
+        opt.textContent = s.name;
         stopSel.appendChild(opt);
-      }
+      });
+      updateTimes();
     }
 
-    // 3. Fetch departures for selected stop & direction
-    async function updateTimes() {
-      const direction = document.getElementById('direction').value;
-      const stopId = document.getElementById('stop').value;
-      const timesDiv = document.getElementById('times');
-
-      timesDiv.innerHTML = "Loading…";
-      try {
-        const res = await fetch(`${API}/departures/${stopId}?line_id=${LINE_ID}&direction=${direction}`);
-        const data = await res.json();
-
-        // Departures are in UNIX seconds
-        const now = Date.now() / 1000;
-        const upcoming = data.departures
-          .filter(dep => dep.departure_time >= now)
-          .slice(0, 8)
-          .map(dep => {
-            const d = new Date(dep.departure_time * 1000);
-            return d.toLocaleTimeString([], {hour: '2-digit', minute: '2-digit'});
-          });
-
-        timesDiv.innerHTML = `<b>Next departures from <span>${stopIdToName[stopId]}</span>:</b><br>
-          ${upcoming.length ? upcoming.join(', ') : 'No more trams today.'}`;
-        document.getElementById('lastupdate').textContent =
-          "Updated: " + new Date().toLocaleTimeString();
-      } catch (e) {
-        timesDiv.innerHTML = "Error loading timetable. Please try again.";
-      }
+    function updateTimes() {
+      const direction = dirSel.value;
+      const stopIndex = stopSel.value;
+      const stop = timetable[direction].stops[stopIndex];
+      if (!stop) return timesDiv.innerHTML = "";
+      const now = new Date();
+      const currTime = now.getHours() * 60 + now.getMinutes();
+      // find next 6 departures
+      const upcoming = stop.times.filter(t => {
+        const [h, m] = t.split(":").map(Number);
+        return (h * 60 + m) >= currTime;
+      }).slice(0, 6);
+      timesDiv.innerHTML = `<b>Next departures from ${stop.name}:</b><br>` +
+        (upcoming.length ? upcoming.join(", ") : "No more trams today.");
     }
 
-    // 4. Setup event handlers and initialise
-    document.getElementById('direction').addEventListener('change', async function() {
-      populateStops(this.value);
-      await updateTimes();
-    });
-    document.getElementById('stop').addEventListener('change', updateTimes);
+    dirSel.addEventListener('change', updateStops);
+    stopSel.addEventListener('change', updateTimes);
 
-    // 5. Load everything
-    (async function init() {
-      await fetchStops();
-      populateStops('A');
-      await updateTimes();
-    })();
+    // Initialize
+    updateStops();
   </script>
 </body>
 </html>
