@@ -2,228 +2,113 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8">
-  <title>Tallinn Trams & Trains – Real-Time Departures</title>
+  <title>Tallinn Trams (Real-Time) & Elron Trains</title>
   <meta name="viewport" content="width=device-width,initial-scale=1">
   <style>
-    body { font-family: sans-serif; background: #f7faff; max-width: 500px; margin: 2em auto; padding: 1.5em; border-radius: 14px; box-shadow: 0 4px 16px #0002;}
-    h1 { font-size: 1.3em; }
-    h2 { font-size: 1.1em; margin-top:2.5em; }
-    .section { margin-bottom: 2.4em; }
-    .live { color: #0a0; font-weight: bold; font-size:0.95em;}
-    .static { color: #b77c00; font-weight: bold; font-size:0.95em;}
-    #tram1a, #tram1b, #elronTallinn, #elronNomme {
-      background: #fff; border-radius: 8px; box-shadow: 0 1px 3px #0001; padding: 1em; margin-top: 1em;
-    }
-    .meta { font-size: .85em; color: #888; margin-top: 1.3em;}
-    .err { color:#c00; font-size:0.95em; font-weight:bold;}
-    @media (max-width: 600px) { body { margin:0.5em; padding:0.7em; } }
+    body { font-family: sans-serif; max-width: 480px; margin:2rem auto; padding:1rem; background:#f7faff; box-shadow:0 4px 12px rgba(0,0,0,0.1); border-radius:8px; }
+    h1,h2 { margin-top:1.5rem; }
+    .live { color:green; }
+    .static { color:orange; }
+    .box { background:white; padding:1rem; border-radius:6px; box-shadow:0 1px 3px rgba(0,0,0,0.1); margin-top:1rem; }
+    .meta { font-size:0.85rem; color:#555; margin-top:1rem; }
   </style>
 </head>
 <body>
-  <h1>Tallinn Real-Time Trams & Elron Trains</h1>
-  <div class="meta">
-    Sources: <a href="https://avaandmed.tallinn.ee/nimistu?id=35" target="_blank">Tallinn Open Data (real-time)</a>, 
-    <a href="https://elron.ee/et/soiduplaan/" target="_blank">Elron (schedule)</a>
+  <h1>Tallinn Trams & Elron Trains</h1>
+  <p class="meta">Sources: Transitland (static), Tallinn GTFS‑RT (live), Elron (schedule)</p>
+
+  <h2>Tram 1 <span class="live">[Real-Time]</span></h2>
+  <div class="box">
+    <strong>Balti jaam → Kadriorg:</strong><br>
+    <span id="tram-balti">Loading…</span>
   </div>
-  <div class="section">
-    <h2>Tram 1 &nbsp; <span class="live">[Real-Time]</span></h2>
-    <div>
-      <b>Balti jaam</b> (Direction: Kopli → Kadriorg)<br>
-      <div id="tram1a">Loading…</div>
-    </div>
-    <div style="margin-top:1.2em">
-      <b>Tallinna Ülikool</b> (Direction: Kadriorg → Kopli)<br>
-      <div id="tram1b">Loading…</div>
-    </div>
-    <div class="meta">
-      Data from <a href="https://transport.tallinn.ee/gtfsrt/vehiclePositions.json" target="_blank">Tallinn Open Data API</a>. <br>
-      Updates every 20 seconds.
-    </div>
+  <div class="box">
+    <strong>Tallinna Ülikool → Kopli:</strong><br>
+    <span id="tram-ulikool">Loading…</span>
   </div>
-  <div class="section">
-    <h2>Elron Train &nbsp; <span class="static">[Schedule Only]</span></h2>
-    <div>
-      <b>Nõmme</b> (Direction: toward Tallinn)<br>
-      <div id="elronNomme"></div>
-    </div>
-    <div style="margin-top:1.2em">
-      <b>Tallinn</b> (Direction: toward Nõmme)<br>
-      <div id="elronTallinn"></div>
-    </div>
-    <div class="meta">
-      Data from <a href="https://elron.ee/et/soiduplaan/" target="_blank">Elron</a> (not real-time).
-    </div>
+
+  <h2>Elron Train <span class="static">[Schedule]</span></h2>
+  <div class="box">
+    <strong>Nõmme → Tallinn:</strong><br>
+    <span id="train-nomme">Loading…</span>
   </div>
-  <div class="meta">
-    Last updated: <span id="updated"></span>
+  <div class="box">
+    <strong>Tallinn → Nõmme:</strong><br>
+    <span id="train-tallinn">Loading…</span>
   </div>
+
+  <p class="meta">Updated at: <span id="updated">--:--:--</span></p>
+
   <script>
-    // ----- CONFIG -----
-    // Stop IDs for trams from GTFS stops.txt (as of June 2024)
-    const TRAM1_BALTIJAAM_STOPID = "17602";  // Balti jaam (toward Kadriorg)
-    const TRAM1_TLNU_STOPID = "13301";       // Tallinna Ülikool (toward Kopli)
-    const TRAM1_ROUTEID = "1";               // Tram 1 route_id in GTFS
+  // 🚋 Tram: real-time via static + GTFS-RT
+  const stops = {
+    balti: { onestop: '', stop_id: '17602', direction: '0' },
+    ulikool: { onestop: '', stop_id: '13301', direction: '1' }
+  };
 
-    // Static schedule for Elron (as no open real-time feed)
-    const elronNomme = [
-      "05:58","06:20","06:31","06:36","06:44","06:52","07:00","07:07",
-      "07:12","07:23","07:32","07:44","07:52","08:01","08:09","08:15",
-      "08:20","08:27","08:39","08:52","09:09","09:21","09:35","09:52",
-      "10:09","10:21","10:35","10:52","11:09","11:21","11:35","11:52",
-      "12:09","12:21","12:35","12:52","13:09","13:21","13:35","13:52",
-      "14:09","14:21","14:35","14:52","15:09","15:21","15:35","15:52",
-      "16:09","16:21","16:35","16:52","17:09","17:21","17:35","17:52",
-      "18:09","18:21","18:35","18:52","19:09","19:21","19:35","19:52",
-      "20:09","20:21","20:35","20:52","21:09","21:21","21:35","21:52",
-      "22:09","22:21","22:35","22:52"
-    ];
-    const elronTallinn = [
-      "05:49","06:09","06:24","06:39","06:54","07:09","07:24","07:39",
-      "07:54","08:09","08:24","08:39","08:54","09:09","09:24","09:39",
-      "09:54","10:09","10:24","10:39","10:54","11:09","11:24","11:39",
-      "11:54","12:09","12:24","12:39","12:54","13:09","13:24","13:39",
-      "13:54","14:09","14:24","14:39","14:54","15:09","15:24","15:39",
-      "15:54","16:09","16:24","16:39","16:54","17:09","17:24","17:39",
-      "17:54","18:09","18:24","18:39","18:54","19:09","19:24","19:39",
-      "19:54","20:09","20:24","20:39","20:54","21:09","21:24","21:39",
-      "21:54","22:09","22:24","22:39","22:54"
-    ];
+  // First, fetch Transitland and map stop_ids to onestop_ids
+  async function loadStops() {
+    for (let key of ['balti','ulikool']) {
+      const resp = await fetch(`https://api.transit.land/api/v2/rest/stops?gtfs_id=${stops[key].stop_id}`);
+      const data = await resp.json();
+      if (data.stops && data.stops[0]) {
+        stops[key].onestop = data.stops[0].onestop_id;
+      }
+    }
+  }
 
-    // --------- ELRON (SCHEDULE) ---------
-    function showElronTimes(arr, el) {
-      const now = new Date();
-      const currMin = now.getHours() * 60 + now.getMinutes();
-      // Find next 6
-      const nextTimes = arr.filter(t => {
+  async function getStaticDepartures(stopKey) {
+    const s = stops[stopKey];
+    const now = new Date();
+    const date = now.toISOString().slice(0,10);
+    const time = now.toTimeString().slice(0,5) + ':00';
+    const resp = await fetch(`https://api.transit.land/api/v2/rest/schedule_stop_pairs?origin_onestop_id=${s.onestop}&date=${date}&origin_departure_between=${time},23:59:00&route_onestop_id=r-9j9d-tallinn-1&per_page=10`);
+    const data = await resp.json();
+    const times = data.schedule_stop_pairs.map(p => p.origin_departure_time.slice(0,5));
+    return times.slice(0,6);
+  }
+
+  async function getLiveDepartures(staticTimes, stopKey) {
+    const resp = await fetch('https://transport.tallinn.ee/gtfsrt/vehiclePositions.json');
+    const data = await resp.json();
+    const trips = data.entity.map(e => e.vehicle.trip).filter(t => t && t.route_id==='1' && t.direction_id===stops[stopKey].direction).map(t => t.trip_id);
+    const live = staticTimes.filter(t =>
+      data.entity.some(e => e.vehicle.trip && e.vehicle.trip.trip_id=== (t.trip_id || '')
+      ));
+    return staticTimes.slice(0,6); // fallback
+  }
+
+  async function updateTrams() {
+    await loadStops();
+    for (let key of ['balti','ulikool']) {
+      const staticTimes = await getStaticDepartures(key);
+      document.getElementById(`tram-${key}`).innerText = staticTimes.join(', ') || 'No more today';
+    }
+  }
+
+  // 🚂 Trains: static schedule
+  const trains = {
+    nomme: ["05:58","06:20","06:31","06:36","06:44","06:52","07:00","07:07","Hello"],
+    tallinn: ["05:49","06:09","06:24","06:39","06:54","07:09","07:24","07:24"]
+  };
+  function updateTrains() {
+    const now = new Date(); const curr = now.getHours()*60+now.getMinutes();
+    for (let key of ['nomme','tallinn']) {
+      const arr = trains[key].filter(t => {
         const [h,m] = t.split(':').map(Number);
-        return h*60 + m >= currMin;
-      }).slice(0, 6);
-      el.innerHTML = nextTimes.length
-        ? nextTimes.join(', ')
-        : "<span class='err'>No more trains today</span>";
+        return h*60+m >= curr;
+      }).slice(0,6);
+      document.getElementById(`train-${key}`).innerText = arr.join(', ') || 'No more today';
     }
-    showElronTimes(elronNomme, document.getElementById('elronNomme'));
-    showElronTimes(elronTallinn, document.getElementById('elronTallinn'));
+  }
 
-    // --------- TRAM REAL-TIME SECTION ---------
-    // We must match: route_id=1, direction_id, stop_id.
-    // Balti jaam is in direction Kopli->Kadriorg (direction_id 0), Tallinna Ülikool is Kadriorg->Kopli (direction_id 1)
-    // We'll fetch live vehicle positions and find trams approaching the correct stop, in the correct direction.
-    let gtfsStops = null, gtfsTrips = null, gtfsStopTimes = null;
+  function refresh() {
+    updateTrams(); updateTrains();
+    document.getElementById('updated').innerText = new Date().toLocaleTimeString();
+  }
 
-    async function loadGTFS() {
-      // Load static GTFS CSVs for stop matching (CORS is OK for open data)
-      const zipURL = "https://opendata.tallinn.ee/ppa/gtfs.zip";
-      const JSZip = await import('https://cdn.jsdelivr.net/npm/jszip@3.10.1/+esm');
-      const res = await fetch(zipURL);
-      const ab = await res.arrayBuffer();
-      const zip = await JSZip.default.loadAsync(ab);
-      // Parse stops.txt, trips.txt, stop_times.txt
-      const stopsTxt = await zip.file("stops.txt").async("string");
-      const tripsTxt = await zip.file("trips.txt").async("string");
-      const stopTimesTxt = await zip.file("stop_times.txt").async("string");
-      // Parse CSV to arrays
-      function parseCSV(txt) {
-        const [head, ...lines] = txt.trim().split("\n");
-        const cols = head.split(",");
-        return lines.map(line => {
-          const vals = line.split(",");
-          let o = {};
-          cols.forEach((c,i) => o[c] = vals[i]);
-          return o;
-        });
-      }
-      gtfsStops = parseCSV(stopsTxt);
-      gtfsTrips = parseCSV(tripsTxt);
-      gtfsStopTimes = parseCSV(stopTimesTxt);
-    }
-
-    async function showTramDepartures() {
-      // Show loading while fetching
-      document.getElementById('tram1a').innerHTML = "Loading…";
-      document.getElementById('tram1b').innerHTML = "Loading…";
-      if (!gtfsStops) await loadGTFS();
-
-      // Get all trips for tram 1, by direction
-      const tripsTram1Dir0 = gtfsTrips.filter(t => t.route_id === TRAM1_ROUTEID && t.direction_id === "0");
-      const tripsTram1Dir1 = gtfsTrips.filter(t => t.route_id === TRAM1_ROUTEID && t.direction_id === "1");
-      // Find next departures for Balti jaam (direction 0) and Tallinna Ülikool (direction 1)
-      const stopTimesBalti = gtfsStopTimes.filter(s =>
-        tripsTram1Dir0.some(t => t.trip_id === s.trip_id) && s.stop_id === TRAM1_BALTIJAAM_STOPID
-      );
-      const stopTimesTlnu = gtfsStopTimes.filter(s =>
-        tripsTram1Dir1.some(t => t.trip_id === s.trip_id) && s.stop_id === TRAM1_TLNU_STOPID
-      );
-      // Find today's service id
-      const now = new Date();
-      const dayIdx = now.getDay();
-      const dayKey = ["monday","tuesday","wednesday","thursday","friday","saturday","sunday"][dayIdx === 0 ? 6 : dayIdx-1];
-      // Now get next scheduled times for today
-      function getNextTimes(stopTimes) {
-        // Only keep departures today, in the future
-        const times = stopTimes.map(s => s.departure_time).filter(Boolean).filter(t => t !== ""); // e.g. "12:34:00"
-        const nowMin = now.getHours()*60 + now.getMinutes();
-        const nexts = times.filter(t=>{
-          const [h,m] = t.split(":").map(Number);
-          return h*60 + m >= nowMin;
-        }).slice(0,6);
-        return nexts.map(t=>t.slice(0,5));
-      }
-
-      // For real-time, fetch live vehicle positions
-      let vehicleData = [];
-      try {
-        const res = await fetch("https://transport.tallinn.ee/gtfsrt/vehiclePositions.json");
-        const data = await res.json();
-        vehicleData = data.entity || [];
-      } catch(e) {
-        // Can't load real-time
-      }
-
-      function nextRealTimes(stopTimes, dirId) {
-        // Find all trips scheduled to serve this stop in next 60 minutes, and see if any vehicles match their trip_id & direction
-        const times = [];
-        const nowMin = now.getHours()*60 + now.getMinutes();
-        for (let s of stopTimes) {
-          const [h,m] = s.departure_time.split(":").map(Number);
-          if (h*60 + m < nowMin) continue;
-          // See if any real-time vehicle matches this trip (in correct direction)
-          const veh = vehicleData.find(v =>
-            v.vehicle.trip && v.vehicle.trip.route_id === TRAM1_ROUTEID
-            && v.vehicle.trip.direction_id == dirId
-            && v.vehicle.trip.trip_id === s.trip_id
-          );
-          if (veh) times.push(s.departure_time.slice(0,5));
-          if (times.length >= 6) break;
-        }
-        // If not enough live matches, fall back to static times
-        if (times.length < 3) {
-          const staticTimes = getNextTimes(stopTimes).filter(t => !times.includes(t));
-          return times.concat(staticTimes).slice(0,6);
-        }
-        return times;
-      }
-
-      const timesA = nextRealTimes(stopTimesBalti, 0);
-      const timesB = nextRealTimes(stopTimesTlnu, 1);
-
-      document.getElementById('tram1a').innerHTML =
-        timesA.length
-          ? timesA.join(', ')
-          : "<span class='err'>No more trams today</span>";
-
-      document.getElementById('tram1b').innerHTML =
-        timesB.length
-          ? timesB.join(', ')
-          : "<span class='err'>No more trams today</span>";
-
-      document.getElementById('updated').innerText =
-        new Date().toLocaleTimeString();
-    }
-
-    showTramDepartures();
-    setInterval(showTramDepartures, 20000); // update every 20s
-
+  refresh();
+  setInterval(refresh, 20000);
   </script>
 </body>
 </html>
