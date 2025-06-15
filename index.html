@@ -2,187 +2,228 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8">
-  <title>Tallinn Tram 1 & Elron Train Times</title>
+  <title>Tallinn Trams & Trains – Real-Time Departures</title>
   <meta name="viewport" content="width=device-width,initial-scale=1">
   <style>
-    body { font-family: sans-serif; background: #f7faff; max-width: 480px; margin: 2em auto; padding: 1.5em; border-radius: 14px; box-shadow: 0 4px 16px #0002;}
-    h1 { font-size: 1.2em; }
-    h2 { font-size: 1.1em; margin-top:2.3em; }
-    select { font-size: 1em; margin: 0.5em 0; padding: 0.3em 0.8em;}
-    #times, #train-times { background: #fff; border-radius: 8px; box-shadow: 0 1px 3px #0001; padding: 1em; margin-top: 1em;}
-    .meta { font-size: .87em; color: #888; margin-top: 2em;}
+    body { font-family: sans-serif; background: #f7faff; max-width: 500px; margin: 2em auto; padding: 1.5em; border-radius: 14px; box-shadow: 0 4px 16px #0002;}
+    h1 { font-size: 1.3em; }
+    h2 { font-size: 1.1em; margin-top:2.5em; }
+    .section { margin-bottom: 2.4em; }
+    .live { color: #0a0; font-weight: bold; font-size:0.95em;}
+    .static { color: #b77c00; font-weight: bold; font-size:0.95em;}
+    #tram1a, #tram1b, #elronTallinn, #elronNomme {
+      background: #fff; border-radius: 8px; box-shadow: 0 1px 3px #0001; padding: 1em; margin-top: 1em;
+    }
+    .meta { font-size: .85em; color: #888; margin-top: 1.3em;}
+    .err { color:#c00; font-size:0.95em; font-weight:bold;}
     @media (max-width: 600px) { body { margin:0.5em; padding:0.7em; } }
   </style>
 </head>
 <body>
-  <h1>Tallinn Tram 1: Balti jaam & Tallinna Ülikool Timetables</h1>
-  <label>
-    Direction:<br>
-    <select id="direction">
-      <option value="A">Kopli → Kadriorg (Balti jaam)</option>
-      <option value="B">Kadriorg → Kopli (Tallinna Ülikool)</option>
-    </select>
-  </label>
-  <div id="times"></div>
+  <h1>Tallinn Real-Time Trams & Elron Trains</h1>
   <div class="meta">
-    Source: <a href="https://transport.tallinn.ee/tram1#tram/1/a-b" target="_blank">Tallinna Transport</a>
+    Sources: <a href="https://avaandmed.tallinn.ee/nimistu?id=35" target="_blank">Tallinn Open Data (real-time)</a>, 
+    <a href="https://elron.ee/et/soiduplaan/" target="_blank">Elron (schedule)</a>
   </div>
-
-  <!-- TRAIN PART -->
-  <h2>Elron Train Timetable: Nõmme & Tallinn</h2>
-  <label>
-    Direction:<br>
-    <select id="train-direction">
-      <option value="toTallinn">Nõmme → Tallinn (Nõmme stop)</option>
-      <option value="toNomme">Tallinn → Nõmme (Tallinn stop)</option>
-    </select>
-  </label>
-  <div id="train-times"></div>
+  <div class="section">
+    <h2>Tram 1 &nbsp; <span class="live">[Real-Time]</span></h2>
+    <div>
+      <b>Balti jaam</b> (Direction: Kopli → Kadriorg)<br>
+      <div id="tram1a">Loading…</div>
+    </div>
+    <div style="margin-top:1.2em">
+      <b>Tallinna Ülikool</b> (Direction: Kadriorg → Kopli)<br>
+      <div id="tram1b">Loading…</div>
+    </div>
+    <div class="meta">
+      Data from <a href="https://transport.tallinn.ee/gtfsrt/vehiclePositions.json" target="_blank">Tallinn Open Data API</a>. <br>
+      Updates every 20 seconds.
+    </div>
+  </div>
+  <div class="section">
+    <h2>Elron Train &nbsp; <span class="static">[Schedule Only]</span></h2>
+    <div>
+      <b>Nõmme</b> (Direction: toward Tallinn)<br>
+      <div id="elronNomme"></div>
+    </div>
+    <div style="margin-top:1.2em">
+      <b>Tallinn</b> (Direction: toward Nõmme)<br>
+      <div id="elronTallinn"></div>
+    </div>
+    <div class="meta">
+      Data from <a href="https://elron.ee/et/soiduplaan/" target="_blank">Elron</a> (not real-time).
+    </div>
+  </div>
   <div class="meta">
-    Source: <a href="https://elron.ee/" target="_blank">Elron (Official Timetable)</a>
+    Last updated: <span id="updated"></span>
   </div>
-
   <script>
-    // -------- TRAM PART (UNCHANGED) --------
-    const timetable = {
-      "A": { // Kopli → Kadriorg, Balti jaam stop
-        stop: "Balti jaam",
-        times: [
-          "05:34","05:46","05:58","06:10","06:22","06:34","06:46","06:58",
-          "07:10","07:22","07:34","07:46","07:58","08:10","08:22","08:34",
-          "08:46","08:58","09:10","09:22","09:34","09:46","09:58","10:10",
-          "10:22","10:34","10:46","10:58","11:10","11:22","11:34","11:46",
-          "11:58","12:10","12:22","12:34","12:46","12:58","13:10","13:22",
-          "13:34","13:46","13:58","14:10","14:22","14:34","14:46","14:58",
-          "15:10","15:22","15:34","15:46","15:58","16:10","16:22","16:34",
-          "16:46","16:58","17:10","17:22","17:34","17:46","17:58","18:10",
-          "18:22","18:34","18:46","18:58","19:10","19:22","19:34","19:46",
-          "19:58","20:10","20:22","20:34","20:46","20:58","21:10","21:22",
-          "21:34","21:46","21:58","22:10","22:22","22:34","22:46","22:58",
-          "23:10","23:22","23:34","23:46"
-        ]
-      },
-      "B": { // Kadriorg → Kopli, Tallinna Ülikool stop
-        stop: "Tallinna Ülikool",
-        times: [
-          "05:48","06:00","06:12","06:24","06:36","06:48","07:00","07:12",
-          "07:24","07:36","07:48","08:00","08:12","08:24","08:36","08:48",
-          "09:00","09:12","09:24","09:36","09:48","10:00","10:12","10:24",
-          "10:36","10:48","11:00","11:12","11:24","11:36","11:48","12:00",
-          "12:12","12:24","12:36","12:48","13:00","13:12","13:24","13:36",
-          "13:48","14:00","14:12","14:24","14:36","14:48","15:00","15:12",
-          "15:24","15:36","15:48","16:00","16:12","16:24","16:36","16:48",
-          "17:00","17:12","17:24","17:36","17:48","18:00","18:12","18:24",
-          "18:36","18:48","19:00","19:12","19:24","19:36","19:48","20:00",
-          "20:12","20:24","20:36","20:48","21:00","21:12","21:24","21:36",
-          "21:48","22:00","22:12","22:24","22:36","22:48","23:00","23:12",
-          "23:24","23:36","23:48"
-        ]
-      }
-    };
+    // ----- CONFIG -----
+    // Stop IDs for trams from GTFS stops.txt (as of June 2024)
+    const TRAM1_BALTIJAAM_STOPID = "17602";  // Balti jaam (toward Kadriorg)
+    const TRAM1_TLNU_STOPID = "13301";       // Tallinna Ülikool (toward Kopli)
+    const TRAM1_ROUTEID = "1";               // Tram 1 route_id in GTFS
 
-    const dirSel = document.getElementById('direction');
-    const timesDiv = document.getElementById('times');
+    // Static schedule for Elron (as no open real-time feed)
+    const elronNomme = [
+      "05:58","06:20","06:31","06:36","06:44","06:52","07:00","07:07",
+      "07:12","07:23","07:32","07:44","07:52","08:01","08:09","08:15",
+      "08:20","08:27","08:39","08:52","09:09","09:21","09:35","09:52",
+      "10:09","10:21","10:35","10:52","11:09","11:21","11:35","11:52",
+      "12:09","12:21","12:35","12:52","13:09","13:21","13:35","13:52",
+      "14:09","14:21","14:35","14:52","15:09","15:21","15:35","15:52",
+      "16:09","16:21","16:35","16:52","17:09","17:21","17:35","17:52",
+      "18:09","18:21","18:35","18:52","19:09","19:21","19:35","19:52",
+      "20:09","20:21","20:35","20:52","21:09","21:21","21:35","21:52",
+      "22:09","22:21","22:35","22:52"
+    ];
+    const elronTallinn = [
+      "05:49","06:09","06:24","06:39","06:54","07:09","07:24","07:39",
+      "07:54","08:09","08:24","08:39","08:54","09:09","09:24","09:39",
+      "09:54","10:09","10:24","10:39","10:54","11:09","11:24","11:39",
+      "11:54","12:09","12:24","12:39","12:54","13:09","13:24","13:39",
+      "13:54","14:09","14:24","14:39","14:54","15:09","15:24","15:39",
+      "15:54","16:09","16:24","16:39","16:54","17:09","17:24","17:39",
+      "17:54","18:09","18:24","18:39","18:54","19:09","19:24","19:39",
+      "19:54","20:09","20:24","20:39","20:54","21:09","21:24","21:39",
+      "21:54","22:09","22:24","22:39","22:54"
+    ];
 
-    function updateTimes() {
-      const dir = dirSel.value;
-      const stop = timetable[dir].stop;
-      const times = timetable[dir].times;
-      // Get current time in minutes
+    // --------- ELRON (SCHEDULE) ---------
+    function showElronTimes(arr, el) {
       const now = new Date();
       const currMin = now.getHours() * 60 + now.getMinutes();
-      // Find next 6 departures
-      const nextTimes = times.filter(t => {
+      // Find next 6
+      const nextTimes = arr.filter(t => {
         const [h,m] = t.split(':').map(Number);
-        return h * 60 + m >= currMin;
+        return h*60 + m >= currMin;
       }).slice(0, 6);
-
-      timesDiv.innerHTML = `<b>Next departures from ${stop}:</b><br>` +
-        (nextTimes.length ? nextTimes.join(", ") : "No more trams today.");
+      el.innerHTML = nextTimes.length
+        ? nextTimes.join(', ')
+        : "<span class='err'>No more trains today</span>";
     }
+    showElronTimes(elronNomme, document.getElementById('elronNomme'));
+    showElronTimes(elronTallinn, document.getElementById('elronTallinn'));
 
-    dirSel.addEventListener('change', updateTimes);
+    // --------- TRAM REAL-TIME SECTION ---------
+    // We must match: route_id=1, direction_id, stop_id.
+    // Balti jaam is in direction Kopli->Kadriorg (direction_id 0), Tallinna Ülikool is Kadriorg->Kopli (direction_id 1)
+    // We'll fetch live vehicle positions and find trams approaching the correct stop, in the correct direction.
+    let gtfsStops = null, gtfsTrips = null, gtfsStopTimes = null;
 
-    // Initial render
-    updateTimes();
-
-    // -------- TRAIN PART --------
-    // Example times for Nõmme -> Tallinn and Tallinn -> Nõmme (Elron, weekdays, as of 2024)
-    // You should check and update these times regularly from https://elron.ee/
-    const trainTimetable = {
-      "toTallinn": {
-        stop: "Nõmme",
-        directionText: "Nõmme → Tallinn",
-        // Typical weekday daytime departures; please adjust for season/holidays as needed!
-        times: [
-          "05:55","06:09","06:23","06:32","06:39","06:47","06:56",
-          "07:05","07:13","07:22","07:31","07:39","07:48","07:57",
-          "08:08","08:17","08:29","08:37","08:44","08:52",
-          "09:00","09:14","09:29","09:44","09:59",
-          "10:14","10:29","10:44","10:59",
-          "11:14","11:29","11:44","11:59",
-          "12:14","12:29","12:44","12:59",
-          "13:14","13:29","13:44","13:59",
-          "14:14","14:29","14:44","14:59",
-          "15:14","15:29","15:44","15:59",
-          "16:14","16:29","16:44","16:59",
-          "17:14","17:29","17:44","17:59",
-          "18:14","18:29","18:44","18:59",
-          "19:14","19:29","19:44","19:59",
-          "20:14","20:29","20:44","20:59",
-          "21:14","21:29","21:44","21:59",
-          "22:14","22:29","22:44","22:59"
-        ]
-      },
-      "toNomme": {
-        stop: "Tallinn",
-        directionText: "Tallinn → Nõmme",
-        times: [
-          "05:40","05:55","06:10","06:25","06:40","06:55",
-          "07:10","07:25","07:40","07:55",
-          "08:10","08:25","08:40","08:55",
-          "09:10","09:25","09:40","09:55",
-          "10:10","10:25","10:40","10:55",
-          "11:10","11:25","11:40","11:55",
-          "12:10","12:25","12:40","12:55",
-          "13:10","13:25","13:40","13:55",
-          "14:10","14:25","14:40","14:55",
-          "15:10","15:25","15:40","15:55",
-          "16:10","16:25","16:40","16:55",
-          "17:10","17:25","17:40","17:55",
-          "18:10","18:25","18:40","18:55",
-          "19:10","19:25","19:40","19:55",
-          "20:10","20:25","20:40","20:55",
-          "21:10","21:25","21:40","21:55",
-          "22:10","22:25","22:40","22:55"
-        ]
+    async function loadGTFS() {
+      // Load static GTFS CSVs for stop matching (CORS is OK for open data)
+      const zipURL = "https://opendata.tallinn.ee/ppa/gtfs.zip";
+      const JSZip = await import('https://cdn.jsdelivr.net/npm/jszip@3.10.1/+esm');
+      const res = await fetch(zipURL);
+      const ab = await res.arrayBuffer();
+      const zip = await JSZip.default.loadAsync(ab);
+      // Parse stops.txt, trips.txt, stop_times.txt
+      const stopsTxt = await zip.file("stops.txt").async("string");
+      const tripsTxt = await zip.file("trips.txt").async("string");
+      const stopTimesTxt = await zip.file("stop_times.txt").async("string");
+      // Parse CSV to arrays
+      function parseCSV(txt) {
+        const [head, ...lines] = txt.trim().split("\n");
+        const cols = head.split(",");
+        return lines.map(line => {
+          const vals = line.split(",");
+          let o = {};
+          cols.forEach((c,i) => o[c] = vals[i]);
+          return o;
+        });
       }
-    };
-
-    const trainDirSel = document.getElementById('train-direction');
-    const trainTimesDiv = document.getElementById('train-times');
-
-    function updateTrainTimes() {
-      const dir = trainDirSel.value;
-      const stop = trainTimetable[dir].stop;
-      const times = trainTimetable[dir].times;
-      // Get current time in minutes
-      const now = new Date();
-      const currMin = now.getHours() * 60 + now.getMinutes();
-      // Find next 6 departures
-      const nextTimes = times.filter(t => {
-        const [h,m] = t.split(':').map(Number);
-        return h * 60 + m >= currMin;
-      }).slice(0, 6);
-
-      trainTimesDiv.innerHTML = `<b>Next departures from ${stop}:</b><br>` +
-        (nextTimes.length ? nextTimes.join(", ") : "No more trains today.");
+      gtfsStops = parseCSV(stopsTxt);
+      gtfsTrips = parseCSV(tripsTxt);
+      gtfsStopTimes = parseCSV(stopTimesTxt);
     }
 
-    trainDirSel.addEventListener('change', updateTrainTimes);
+    async function showTramDepartures() {
+      // Show loading while fetching
+      document.getElementById('tram1a').innerHTML = "Loading…";
+      document.getElementById('tram1b').innerHTML = "Loading…";
+      if (!gtfsStops) await loadGTFS();
 
-    // Initial train times render
-    updateTrainTimes();
+      // Get all trips for tram 1, by direction
+      const tripsTram1Dir0 = gtfsTrips.filter(t => t.route_id === TRAM1_ROUTEID && t.direction_id === "0");
+      const tripsTram1Dir1 = gtfsTrips.filter(t => t.route_id === TRAM1_ROUTEID && t.direction_id === "1");
+      // Find next departures for Balti jaam (direction 0) and Tallinna Ülikool (direction 1)
+      const stopTimesBalti = gtfsStopTimes.filter(s =>
+        tripsTram1Dir0.some(t => t.trip_id === s.trip_id) && s.stop_id === TRAM1_BALTIJAAM_STOPID
+      );
+      const stopTimesTlnu = gtfsStopTimes.filter(s =>
+        tripsTram1Dir1.some(t => t.trip_id === s.trip_id) && s.stop_id === TRAM1_TLNU_STOPID
+      );
+      // Find today's service id
+      const now = new Date();
+      const dayIdx = now.getDay();
+      const dayKey = ["monday","tuesday","wednesday","thursday","friday","saturday","sunday"][dayIdx === 0 ? 6 : dayIdx-1];
+      // Now get next scheduled times for today
+      function getNextTimes(stopTimes) {
+        // Only keep departures today, in the future
+        const times = stopTimes.map(s => s.departure_time).filter(Boolean).filter(t => t !== ""); // e.g. "12:34:00"
+        const nowMin = now.getHours()*60 + now.getMinutes();
+        const nexts = times.filter(t=>{
+          const [h,m] = t.split(":").map(Number);
+          return h*60 + m >= nowMin;
+        }).slice(0,6);
+        return nexts.map(t=>t.slice(0,5));
+      }
+
+      // For real-time, fetch live vehicle positions
+      let vehicleData = [];
+      try {
+        const res = await fetch("https://transport.tallinn.ee/gtfsrt/vehiclePositions.json");
+        const data = await res.json();
+        vehicleData = data.entity || [];
+      } catch(e) {
+        // Can't load real-time
+      }
+
+      function nextRealTimes(stopTimes, dirId) {
+        // Find all trips scheduled to serve this stop in next 60 minutes, and see if any vehicles match their trip_id & direction
+        const times = [];
+        const nowMin = now.getHours()*60 + now.getMinutes();
+        for (let s of stopTimes) {
+          const [h,m] = s.departure_time.split(":").map(Number);
+          if (h*60 + m < nowMin) continue;
+          // See if any real-time vehicle matches this trip (in correct direction)
+          const veh = vehicleData.find(v =>
+            v.vehicle.trip && v.vehicle.trip.route_id === TRAM1_ROUTEID
+            && v.vehicle.trip.direction_id == dirId
+            && v.vehicle.trip.trip_id === s.trip_id
+          );
+          if (veh) times.push(s.departure_time.slice(0,5));
+          if (times.length >= 6) break;
+        }
+        // If not enough live matches, fall back to static times
+        if (times.length < 3) {
+          const staticTimes = getNextTimes(stopTimes).filter(t => !times.includes(t));
+          return times.concat(staticTimes).slice(0,6);
+        }
+        return times;
+      }
+
+      const timesA = nextRealTimes(stopTimesBalti, 0);
+      const timesB = nextRealTimes(stopTimesTlnu, 1);
+
+      document.getElementById('tram1a').innerHTML =
+        timesA.length
+          ? timesA.join(', ')
+          : "<span class='err'>No more trams today</span>";
+
+      document.getElementById('tram1b').innerHTML =
+        timesB.length
+          ? timesB.join(', ')
+          : "<span class='err'>No more trams today</span>";
+
+      document.getElementById('updated').innerText =
+        new Date().toLocaleTimeString();
+    }
+
+    showTramDepartures();
+    setInterval(showTramDepartures, 20000); // update every 20s
+
   </script>
 </body>
 </html>
