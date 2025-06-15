@@ -2,13 +2,14 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8">
-  <title>Tallinn Tram 1 – Balti jaam & Tallinna Ülikool Times</title>
+  <title>Tallinn Tram 1 & Elron Train Times</title>
   <meta name="viewport" content="width=device-width,initial-scale=1">
   <style>
-    body { font-family: sans-serif; background: #f7faff; max-width: 420px; margin: 2em auto; padding: 1.5em; border-radius: 14px; box-shadow: 0 4px 16px #0002;}
+    body { font-family: sans-serif; background: #f7faff; max-width: 480px; margin: 2em auto; padding: 1.5em; border-radius: 14px; box-shadow: 0 4px 16px #0002;}
     h1 { font-size: 1.2em; }
+    h2 { font-size: 1.1em; margin-top:2.3em; }
     select { font-size: 1em; margin: 0.5em 0; padding: 0.3em 0.8em;}
-    #times { background: #fff; border-radius: 8px; box-shadow: 0 1px 3px #0001; padding: 1em; margin-top: 1em;}
+    #times, #train-times { background: #fff; border-radius: 8px; box-shadow: 0 1px 3px #0001; padding: 1em; margin-top: 1em;}
     .meta { font-size: .87em; color: #888; margin-top: 2em;}
     @media (max-width: 600px) { body { margin:0.5em; padding:0.7em; } }
   </style>
@@ -26,9 +27,23 @@
   <div class="meta">
     Source: <a href="https://transport.tallinn.ee/tram1#tram/1/a-b" target="_blank">Tallinna Transport</a>
   </div>
+
+  <!-- TRAIN PART -->
+  <h2>Elron Train Timetable: Nõmme & Tallinn</h2>
+  <label>
+    Direction:<br>
+    <select id="train-direction">
+      <option value="toTallinn">Nõmme → Tallinn (Nõmme stop)</option>
+      <option value="toNomme">Tallinn → Nõmme (Tallinn stop)</option>
+    </select>
+  </label>
+  <div id="train-times"></div>
+  <div class="meta">
+    Source: <a href="https://elron.ee/" target="_blank">Elron (Official Timetable)</a>
+  </div>
+
   <script>
-    // Timetables: Replace/expand as needed. Data as of Spring 2024. Double check for seasonal changes!
-    // Weekday schedule (Mon–Fri, day service)
+    // -------- TRAM PART (UNCHANGED) --------
     const timetable = {
       "A": { // Kopli → Kadriorg, Balti jaam stop
         stop: "Balti jaam",
@@ -90,6 +105,84 @@
 
     // Initial render
     updateTimes();
+
+    // -------- TRAIN PART --------
+    // Example times for Nõmme -> Tallinn and Tallinn -> Nõmme (Elron, weekdays, as of 2024)
+    // You should check and update these times regularly from https://elron.ee/
+    const trainTimetable = {
+      "toTallinn": {
+        stop: "Nõmme",
+        directionText: "Nõmme → Tallinn",
+        // Typical weekday daytime departures; please adjust for season/holidays as needed!
+        times: [
+          "05:55","06:09","06:23","06:32","06:39","06:47","06:56",
+          "07:05","07:13","07:22","07:31","07:39","07:48","07:57",
+          "08:08","08:17","08:29","08:37","08:44","08:52",
+          "09:00","09:14","09:29","09:44","09:59",
+          "10:14","10:29","10:44","10:59",
+          "11:14","11:29","11:44","11:59",
+          "12:14","12:29","12:44","12:59",
+          "13:14","13:29","13:44","13:59",
+          "14:14","14:29","14:44","14:59",
+          "15:14","15:29","15:44","15:59",
+          "16:14","16:29","16:44","16:59",
+          "17:14","17:29","17:44","17:59",
+          "18:14","18:29","18:44","18:59",
+          "19:14","19:29","19:44","19:59",
+          "20:14","20:29","20:44","20:59",
+          "21:14","21:29","21:44","21:59",
+          "22:14","22:29","22:44","22:59"
+        ]
+      },
+      "toNomme": {
+        stop: "Tallinn",
+        directionText: "Tallinn → Nõmme",
+        times: [
+          "05:40","05:55","06:10","06:25","06:40","06:55",
+          "07:10","07:25","07:40","07:55",
+          "08:10","08:25","08:40","08:55",
+          "09:10","09:25","09:40","09:55",
+          "10:10","10:25","10:40","10:55",
+          "11:10","11:25","11:40","11:55",
+          "12:10","12:25","12:40","12:55",
+          "13:10","13:25","13:40","13:55",
+          "14:10","14:25","14:40","14:55",
+          "15:10","15:25","15:40","15:55",
+          "16:10","16:25","16:40","16:55",
+          "17:10","17:25","17:40","17:55",
+          "18:10","18:25","18:40","18:55",
+          "19:10","19:25","19:40","19:55",
+          "20:10","20:25","20:40","20:55",
+          "21:10","21:25","21:40","21:55",
+          "22:10","22:25","22:40","22:55"
+        ]
+      }
+    };
+
+    const trainDirSel = document.getElementById('train-direction');
+    const trainTimesDiv = document.getElementById('train-times');
+
+    function updateTrainTimes() {
+      const dir = trainDirSel.value;
+      const stop = trainTimetable[dir].stop;
+      const times = trainTimetable[dir].times;
+      // Get current time in minutes
+      const now = new Date();
+      const currMin = now.getHours() * 60 + now.getMinutes();
+      // Find next 6 departures
+      const nextTimes = times.filter(t => {
+        const [h,m] = t.split(':').map(Number);
+        return h * 60 + m >= currMin;
+      }).slice(0, 6);
+
+      trainTimesDiv.innerHTML = `<b>Next departures from ${stop}:</b><br>` +
+        (nextTimes.length ? nextTimes.join(", ") : "No more trains today.");
+    }
+
+    trainDirSel.addEventListener('change', updateTrainTimes);
+
+    // Initial train times render
+    updateTrainTimes();
   </script>
 </body>
 </html>
