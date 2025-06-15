@@ -2,36 +2,119 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8">
-  <title>Tallinn Tram 1 Timetable</title>
+  <title>Tallinn Tram 1 – Live Timetables</title>
   <meta name="viewport" content="width=device-width,initial-scale=1">
   <style>
-    body { font-family: sans-serif; background: #f5f5f5; max-width: 450px; margin: 2rem auto; padding: 1rem; }
-    h1 { font-size: 1.4em; }
-    select { margin: 0.5em 0; padding: 0.3em; }
-    #times { background: #fff; border-radius: 8px; box-shadow: 0 1px 3px #0002; padding: 1em; margin-top: 1em; }
-    .ref { font-size: 0.85em; color: #888; margin-top: 2em; }
+    body { font-family: system-ui,sans-serif; background: #f7faff; max-width: 440px; margin: 2em auto; padding: 1.2em; border-radius: 14px; box-shadow: 0 4px 16px #0002;}
+    h1 { font-size: 1.25em; }
+    select, button { font-size: 1em; margin: 0.6em 0 1em 0; padding: 0.35em 0.6em;}
+    #times { background: #fff; border-radius: 8px; box-shadow: 0 1px 3px #0001; padding: 1em; margin-top: 1em;}
+    .meta { font-size: .87em; color: #888; margin-top: 2em;}
+    @media (max-width: 600px) { body { margin:0.5em; padding:0.5em; } }
   </style>
 </head>
 <body>
-  <h1>Tallinn Tram 1 Timetable</h1>
+  <h1>Tallinn Tram 1 Timetable (Live)</h1>
+
   <label>
-    Direction:
-    <select id="direction"></select>
+    Direction:<br>
+    <select id="direction">
+      <option value="A">Kopli → Kadriorg</option>
+      <option value="B">Kadriorg → Kopli</option>
+    </select>
   </label>
   <br>
   <label>
-    Stop:
+    Stop:<br>
     <select id="stop"></select>
   </label>
-  <div id="times"></div>
-  <div class="ref">
-    Data source: <a href="https://transport.tallinn.ee/tram1#tram/1/a-b" target="_blank">Tallinna Transport</a>
+  <div id="times">Loading…</div>
+
+  <div class="meta">
+    Source: <a href="https://viimane.info/" target="_blank">viimane.info (Tallinna Transport API)</a> <br>
+    <span id="lastupdate"></span>
   </div>
+
   <script>
-    // DATA: Replace ... with actual times for each stop, both directions
-    const tram1Data = {
-      "Kopli → Kadriorg": {
-        stops: ["Kopli", "Sitsi", "Angerja", "Volta", "Tallinn University", "Kadriorg"],
-        timetable: {
-          Kopli: ["05:20", "05:32", "05:44", "05:56", "06:08", "06:20", "06:32", "06:44", "06:56", "07:08", "07:20", "07:32", "07:44", "07:56", "08:08", "08:20", "08:32", "08:44", "08:56", "09:08", "09:20", "09:32", "09:44", "09:56", "10:08", "10:20", "10:32", "10:44", "10:56", "11:08", "11:20", "11:32", "11:44", "11:56", "12:08", "12:20", "12:32", "12:44", "12:56", "13:08", "13:20", "13:32", "13:44", "13:56", "14:08", "14:20", "14:32", "14:44", "14:56", "15:08", "15:20", "15:32", "15:44", "15:56", "16:08", "16:20", "16:32", "16:44", "16:56", "17:08", "17:20", "17:32", "17:44", "17:56", "18:08", "18:20", "18:32", "18:44", "18:56", "19:08", "19:20", "19:32", "19:44", "19:56", "20:08", "20:20", "20:32", "20:44", "20:56", "21:08", "21:20", "21:32", "21:44", "21:56", "22:08", "22:20", "22:32", "22:44", "22:56", "23:08", "23:20", "23:32", "23:44", "23:54"],
-          Sitsi: ["05:22", "05:34", "05:46", "05:58", "06:10", "06:22", "06:34", "06:46", "06:58", "07:10", "07:22", "07:34", "07:46", "07:58", "08:10", "08:22", "08:34", "08:46", "08:58", "09:10", "09:22", "09:34", "09:46", "09:58", "10:10", "10:22", "10:34", "10:46", "10:58", "11:10", "11:22", "11:34", "11:46", "11:58", "12:10", "12:22", "12:34", "12:46", "12:58", "13:10", "13:22", "13:34", "13:46", "13:58", "14:10", "14:22", "14:34", "14:46", "14:58", "15:10", "15:22", "15:34", "15:46", "15:58", "16:10", "16:22", "16:34", "16:46", "16:58", "17:10", "17:22", "17:34", "17:46", "17:58", "18:10", "18:22", "18:34", "18:46", "18:]()
+    // Line 1, directions: A (Kopli->Kadriorg), B (Kadriorg->Kopli)
+    const LINE_ID = 1; // Tram 1
+    const API = "https://api.viimane.info";
+    const directionNames = {
+      A: "Kopli → Kadriorg",
+      B: "Kadriorg → Kopli"
+    };
+
+    // 1. Get all stops for tram 1 and both directions
+    let stopsByDir = {};
+    let stopIdToName = {};
+
+    async function fetchStops() {
+      for (const dir of ['A','B']) {
+        const res = await fetch(`${API}/lines/${LINE_ID}/${dir}/stops`);
+        const stops = await res.json();
+        stopsByDir[dir] = stops.map(s => ({
+          id: s.stop_id,
+          name: s.stop_name
+        }));
+        stops.forEach(s => stopIdToName[s.stop_id] = s.stop_name);
+      }
+    }
+
+    // 2. Populate direction and stop dropdowns
+    function populateStops(direction) {
+      const stopSel = document.getElementById('stop');
+      stopSel.innerHTML = "";
+      for (const stop of stopsByDir[direction]) {
+        let opt = document.createElement('option');
+        opt.value = stop.id;
+        opt.textContent = stop.name;
+        stopSel.appendChild(opt);
+      }
+    }
+
+    // 3. Fetch departures for selected stop & direction
+    async function updateTimes() {
+      const direction = document.getElementById('direction').value;
+      const stopId = document.getElementById('stop').value;
+      const timesDiv = document.getElementById('times');
+
+      timesDiv.innerHTML = "Loading…";
+      try {
+        const res = await fetch(`${API}/departures/${stopId}?line_id=${LINE_ID}&direction=${direction}`);
+        const data = await res.json();
+
+        // Departures are in UNIX seconds
+        const now = Date.now() / 1000;
+        const upcoming = data.departures
+          .filter(dep => dep.departure_time >= now)
+          .slice(0, 8)
+          .map(dep => {
+            const d = new Date(dep.departure_time * 1000);
+            return d.toLocaleTimeString([], {hour: '2-digit', minute: '2-digit'});
+          });
+
+        timesDiv.innerHTML = `<b>Next departures from <span>${stopIdToName[stopId]}</span>:</b><br>
+          ${upcoming.length ? upcoming.join(', ') : 'No more trams today.'}`;
+        document.getElementById('lastupdate').textContent =
+          "Updated: " + new Date().toLocaleTimeString();
+      } catch (e) {
+        timesDiv.innerHTML = "Error loading timetable. Please try again.";
+      }
+    }
+
+    // 4. Setup event handlers and initialise
+    document.getElementById('direction').addEventListener('change', async function() {
+      populateStops(this.value);
+      await updateTimes();
+    });
+    document.getElementById('stop').addEventListener('change', updateTimes);
+
+    // 5. Load everything
+    (async function init() {
+      await fetchStops();
+      populateStops('A');
+      await updateTimes();
+    })();
+  </script>
+</body>
+</html>
