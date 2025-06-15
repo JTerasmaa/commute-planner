@@ -2,82 +2,36 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Next Elron Trains from Tallinn</title>
-  <link href="https://cdn.jsdelivr.net/npm/tailwindcss@2.2.19/dist/tailwind.min.css" rel="stylesheet">
+  <title>Tallinn Tram 1 Timetable</title>
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <style>
+    body { font-family: sans-serif; background: #f5f5f5; max-width: 450px; margin: 2rem auto; padding: 1rem; }
+    h1 { font-size: 1.4em; }
+    select { margin: 0.5em 0; padding: 0.3em; }
+    #times { background: #fff; border-radius: 8px; box-shadow: 0 1px 3px #0002; padding: 1em; margin-top: 1em; }
+    .ref { font-size: 0.85em; color: #888; margin-top: 2em; }
+  </style>
 </head>
-<body class="bg-gray-100">
-  <div class="max-w-md mx-auto p-6">
-    <h1 class="text-3xl font-bold mb-4">Next Elron Trains from Tallinn</h1>
-    <p id="status" class="text-gray-600 mb-4">Loading departures (next 2h)…</p>
-    <div id="error" class="text-red-500 mb-4"></div>
-    <ul id="train-list" class="list-disc list-inside bg-white p-4 rounded shadow"></ul>
+<body>
+  <h1>Tallinn Tram 1 Timetable</h1>
+  <label>
+    Direction:
+    <select id="direction"></select>
+  </label>
+  <br>
+  <label>
+    Stop:
+    <select id="stop"></select>
+  </label>
+  <div id="times"></div>
+  <div class="ref">
+    Data source: <a href="https://transport.tallinn.ee/tram1#tram/1/a-b" target="_blank">Tallinna Transport</a>
   </div>
-
   <script>
-    const STOP = 'Tallinn';
-    const MODE = 'train';
-    const WINDOW_MS = 2 * 3600 * 1000;
-    const now = Date.now();
-    
-    function loadJSONP(stop, mode, cbName, listId) {
-      // define global callback
-      window[cbName] = function(data) {
-        cleanup();
-        render(data, listId);
-      };
-      
-      function cleanup() {
-        delete window[cbName];
-        document.body.removeChild(script);
-      }
-      
-      const script = document.createElement('script');
-      script.src = `https://peatus.ee/api/departures?stop=${encodeURIComponent(stop)}&mode=${mode}&callback=${cbName}`;
-      script.onerror = () => {
-        cleanup();
-        document.getElementById('error').textContent = `Failed to load departures for ${stop}`;
-        document.getElementById('status').textContent = '';
-      };
-      document.body.appendChild(script);
-    }
-
-    function render(data, listId) {
-      const statusEl = document.getElementById('status');
-      const errorEl = document.getElementById('error');
-      const listEl = document.getElementById(listId);
-      statusEl.textContent = '';
-      listEl.innerHTML = '';
-      if (!Array.isArray(data)) {
-        errorEl.textContent = 'Invalid data format';
-        return;
-      }
-      const times = [...new Set(
-        data.map(item => item.time)
-            .filter(t => {
-              const [h,m] = t.split(':').map(Number);
-              const dt = new Date(now);
-              dt.setHours(h, m, 0, 0);
-              return dt.getTime() >= now && dt.getTime() <= now + WINDOW_MS;
-            })
-      )];
-      if (times.length) {
-        times.forEach(t => {
-          const li = document.createElement('li');
-          li.textContent = t;
-          listEl.appendChild(li);
-        });
-      } else {
-        const li = document.createElement('li');
-        li.textContent = 'No upcoming departures';
-        li.className = 'text-gray-500';
-        listEl.appendChild(li);
-      }
-    }
-
-    document.addEventListener('DOMContentLoaded', () => {
-      loadJSONP(STOP, MODE, 'cbPeatus', 'train-list');
-    });
-  </script>
-</body>
-</html>
+    // DATA: Replace ... with actual times for each stop, both directions
+    const tram1Data = {
+      "Kopli → Kadriorg": {
+        stops: ["Kopli", "Sitsi", "Angerja", "Volta", "Tallinn University", "Kadriorg"],
+        timetable: {
+          Kopli: ["05:20", "05:32", "05:44", "05:56", "06:08", "06:20", "06:32", "06:44", "06:56", "07:08", "07:20", "07:32", "07:44", "07:56", "08:08", "08:20", "08:32", "08:44", "08:56", "09:08", "09:20", "09:32", "09:44", "09:56", "10:08", "10:20", "10:32", "10:44", "10:56", "11:08", "11:20", "11:32", "11:44", "11:56", "12:08", "12:20", "12:32", "12:44", "12:56", "13:08", "13:20", "13:32", "13:44", "13:56", "14:08", "14:20", "14:32", "14:44", "14:56", "15:08", "15:20", "15:32", "15:44", "15:56", "16:08", "16:20", "16:32", "16:44", "16:56", "17:08", "17:20", "17:32", "17:44", "17:56", "18:08", "18:20", "18:32", "18:44", "18:56", "19:08", "19:20", "19:32", "19:44", "19:56", "20:08", "20:20", "20:32", "20:44", "20:56", "21:08", "21:20", "21:32", "21:44", "21:56", "22:08", "22:20", "22:32", "22:44", "22:56", "23:08", "23:20", "23:32", "23:44", "23:54"],
+          Sitsi: ["05:22", "05:34", "05:46", "05:58", "06:10", "06:22", "06:34", "06:46", "06:58", "07:10", "07:22", "07:34", "07:46", "07:58", "08:10", "08:22", "08:34", "08:46", "08:58", "09:10", "09:22", "09:34", "09:46", "09:58", "10:10", "10:22", "10:34", "10:46", "10:58", "11:10", "11:22", "11:34", "11:46", "11:58", "12:10", "12:22", "12:34", "12:46", "12:58", "13:10", "13:22", "13:34", "13:46", "13:58", "14:10", "14:22", "14:34", "14:46", "14:58", "15:10", "15:22", "15:34", "15:46", "15:58", "16:10", "16:22", "16:34", "16:46", "16:58", "17:10", "17:22", "17:34", "17:46", "17:58", "18:10", "18:22", "18:34", "18:46", "18:]()
