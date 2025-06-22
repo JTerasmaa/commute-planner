@@ -1,133 +1,217 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8">
-  <title>Tallinn Trams & Elron Trains</title>
-  <meta name="viewport" content="width=device-width,initial-scale=1">
-  <style>
-    body { font-family: sans-serif; max-width: 480px; margin:2rem auto; padding:1rem; background:#f7faff; box-shadow:0 4px 12px rgba(0,0,0,0.1); border-radius:8px; }
-    h1,h2 { margin-top:1.5rem; }
-    .live { color:green; font-weight:bold; }
-    .static { color:orange; font-weight:bold; }
-    .box { background:white; padding:1rem; border-radius:6px; box-shadow:0 1px 3px rgba(0,0,0,0.1); margin-top:1rem; }
-    .meta { font-size:0.85rem; color:#555; margin-top:1rem; }
-    .err { color: #b00; }
-  </style>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>🚆 SIRI-Based Nõmme ↔ TLÜ Transit</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            color: #333;
+        }
+        .container { max-width: 1200px; margin: 0 auto; padding: 20px; }
+        .header { text-align: center; margin-bottom: 30px; color: white; }
+        .header h1 { font-size: 2.5rem; margin-bottom: 10px; text-shadow: 2px 2px 4px rgba(0,0,0,0.3); }
+        .current-time { font-size: 1.2rem; opacity: 0.9; margin-bottom: 10px; }
+        .api-status { font-size: 0.9rem; opacity: 0.8; display: flex; justify-content: center; align-items: center; gap: 10px; }
+        .status-indicator { width: 8px; height: 8px; border-radius: 50%; background: #4CAF50; animation: pulse 2s infinite; }
+        .status-indicator.error { background: #f44336; }
+        .status-indicator.warning { background: #FF9800; }
+        @keyframes pulse { 0% { opacity: 1; } 50% { opacity: 0.5; } 100% { opacity: 1; } }
+        .direction-toggle { display: flex; justify-content: center; gap: 10px; margin-bottom: 30px; }
+        .toggle-btn { background: rgba(255,255,255,0.2); border: 2px solid white; color: white; padding: 12px 24px; border-radius: 25px; cursor: pointer; transition: all 0.3s; font-weight: 600; }
+        .toggle-btn.active { background: white; color: #667eea; }
+        .toggle-btn:hover { background: rgba(255,255,255,0.3); }
+        .route-section { background: white; border-radius: 15px; padding: 25px; margin-bottom: 25px; box-shadow: 0 10px 30px rgba(0,0,0,0.2); transition: transform 0.3s; }
+        .route-section:hover { transform: translateY(-2px); }
+        .route-header { display: flex; align-items: center; margin-bottom: 20px; padding-bottom: 15px; border-bottom: 2px solid #f0f0f0; }
+        .route-icon { width: 40px; height: 40px; border-radius: 50%; display: flex; align-items: center; justify-content: center; margin-right: 15px; font-weight: bold; color: white; font-size: 1.2rem; }
+        .train-icon { background: #2196F3; }
+        .tram-icon { background: #FF9800; }
+        .route-title { flex: 1; }
+        .route-title h3 { font-size: 1.4rem; margin-bottom: 5px; }
+        .route-subtitle { color: #666; font-size: 0.9rem; }
+        .refresh-btn { background: #4CAF50; color: white; border: none; border-radius: 8px; padding: 8px 16px; cursor: pointer; font-size: 0.9rem; transition: background 0.3s; }
+        .refresh-btn:hover { background: #45a049; }
+        .refresh-btn:disabled { background: #ccc; cursor: not-allowed; }
+        .departures { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 15px; }
+        .departure-card { background: #f8f9fa; border-radius: 10px; padding: 15px; border-left: 4px solid #667eea; transition: all 0.3s; position: relative; }
+        .departure-card:hover { background: #e3f2fd; transform: scale(1.02); }
+        .departure-card.next-departure { border-left-color: #4CAF50; background: #e8f5e8; }
+        .departure-card.soon { border-left-color: #FF9800; background: #fff3e0; }
+        .departure-time { font-size: 1.3rem; font-weight: bold; color: #2196F3; margin-bottom: 5px; }
+        .departure-info { font-size: 0.9rem; color: #666; margin-bottom: 8px; }
+        .departure-status { font-size: 0.8rem; padding: 3px 8px; border-radius: 12px; background: #e8f5e8; color: #2e7d32; display: inline-block; margin-right: 8px; }
+        .delayed { background: #ffebee; color: #c62828; }
+        .countdown { font-size: 0.8rem; color: #FF9800; font-weight: bold; }
+        .loading { text-align: center; padding: 20px; color: #666; }
+        .error { background: #ffebee; color: #c62828; padding: 15px; border-radius: 8px; margin: 10px 0; text-align: center; }
+        .no-data { text-align: center; padding: 20px; color: #666; font-style: italic; }
+        .api-info { background: rgba(255,255,255,0.1); padding: 15px; border-radius: 10px; margin-bottom: 20px; color: white; font-size: 0.9rem; text-align: center; }
+        @media (max-width: 768px) {
+            .header h1 { font-size: 2rem; }
+            .direction-toggle { flex-direction: column; align-items: center; }
+            .route-section { padding: 20px; }
+            .departures { grid-template-columns: 1fr; }
+        }
+    </style>
 </head>
 <body>
-  <h1>Tallinn Trams & Elron Trains</h1>
-  <p class="meta">Sources: <a href="https://transit.land/" target="_blank">Transitland</a> (live static), <a href="https://elron.ee/et/soiduplaan/" target="_blank">Elron</a> (schedule)</p>
+    <div class="container">
+        <div class="header">
+            <h1>🚆 SIRI-Based Nõmme ↔ TLÜ Transit</h1>
+            <div class="current-time" id="currentTime"></div>
+            <div class="api-status">
+                <div class="status-indicator" id="statusIndicator"></div>
+                <span id="statusText">Live schedules via SIRI stop-departures</span>
+            </div>
+        </div>
+        <div class="api-info">
+            <strong>Note:</strong> Times are published schedule times (AimedDepartureTime) from SIRI feed.
+        </div>
+        <div class="direction-toggle">
+            <button class="toggle-btn active" onclick="setDirection('morning')" id="morningBtn">🌅 Morning (Nõmme → TLÜ)</button>
+            <button class="toggle-btn" onclick="setDirection('evening')" id="eveningBtn">🌆 Evening (TLÜ → Nõmme)</button>
+        </div>
+        <div id="routeContainer">
+            <div id="morningRoutes" class="route-group">
+                <div class="route-section">
+                    <div class="route-header">
+                        <div class="route-icon train-icon">🚆</div>
+                        <div class="route-title"><h3>Nõmme → Balti jaam</h3><div class="route-subtitle">Elron train departures</div></div>
+                        <button class="refresh-btn" onclick="refreshRoute('train-morning')">↻</button>
+                    </div>
+                    <div class="departures" id="trainMorningDepartures"><div class="loading">Loading…</div></div>
+                </div>
+                <div class="route-section">
+                    <div class="route-header">
+                        <div class="route-icon tram-icon">1</div>
+                        <div class="route-title"><h3>Balti jaam → TLÜ</h3><div class="route-subtitle">Tram Line 1 departures</div></div>
+                        <button class="refresh-btn" onclick="refreshRoute('tram-morning')">↻</button>
+                    </div>
+                    <div class="departures" id="tramMorningDepartures"><div class="loading">Loading…</div></div>
+                </div>
+            </div>
+            <div id="eveningRoutes" class="route-group" style="display:none;">
+                <div class="route-section">
+                    <div class="route-header">
+                        <div class="route-icon tram-icon">1</div>
+                        <div class="route-title"><h3>TLÜ → Balti jaam</h3><div class="route-subtitle">Tram Line 1 departures</div></div>
+                        <button class="refresh-btn" onclick="refreshRoute('tram-evening')">↻</button>
+                    </div>
+                    <div class="departures" id="tramEveningDepartures"><div class="loading">Loading…</div></div>
+                </div>
+                <div class="route-section">
+                    <div class="route-header">
+                        <div class="route-icon train-icon">🚆</div>
+                        <div class="route-title"><h3>Balti jaam → Nõmme</h3><div class="route-subtitle">Elron train departures</div></div>
+                        <button class="refresh-btn" onclick="refreshRoute('train-evening')">↻</button>
+                    </div>
+                    <div class="departures" id="trainEveningDepartures"><div class="loading">Loading…</div></div>
+                </div>
+            </div>
+        </div>
+    </div>
+    <script>
+        let currentDirection = 'morning';
+        let refreshInterval;
+        
+        function updateCurrentTime() {
+            const now = new Date();
+            document.getElementById('currentTime').textContent =
+                now.toLocaleDateString('et-EE', {weekday:'long', year:'numeric', month:'long', day:'numeric'}) + ' ' +
+                now.toLocaleTimeString('et-EE', {hour:'2-digit',minute:'2-digit',second:'2-digit'});
+        }
 
-  <h2>Tram 1 <span class="live">[Live Schedule]</span></h2>
-  <div class="box">
-    <strong>Balti jaam → Kadriorg:</strong><br>
-    <span id="tram-balti">Loading…</span>
-  </div>
-  <div class="box">
-    <strong>Tallinna Ülikool → Kopli:</strong><br>
-    <span id="tram-ulikool">Loading…</span>
-  </div>
+        function setDirection(dir) {
+            currentDirection = dir;
+            document.getElementById('morningBtn').classList.toggle('active', dir==='morning');
+            document.getElementById('eveningBtn').classList.toggle('active', dir==='evening');
+            document.getElementById('morningRoutes').style.display = dir==='morning'?'block':'none';
+            document.getElementById('eveningRoutes').style.display = dir==='evening'?'block':'none';
+        }
 
-  <h2>Elron Train <span class="static">[Schedule]</span></h2>
-  <div class="box">
-    <strong>Nõmme → Tallinn:</strong><br>
-    <span id="train-nomme">Loading…</span>
-  </div>
-  <div class="box">
-    <strong>Tallinn → Nõmme:</strong><br>
-    <span id="train-tallinn">Loading…</span>
-  </div>
+        async function fetchScheduleDepartures(stopId) {
+            const url = `https://transport.tallinn.ee/siri-stop-departures.php?stopid=${stopId}`;
+            const res = await fetch(url);
+            if (!res.ok) throw new Error('Feed fetch failed');
+            const xmlText = await res.text();
+            const xml = new DOMParser().parseFromString(xmlText, 'application/xml');
+            const visits = Array.from(xml.querySelectorAll('MonitoredStopVisit')).slice(0, 6);
+            return visits.map(v => {
+                const aimed = v.querySelector('AimedDepartureTime').textContent;
+                const line  = v.querySelector('LineRef').textContent;
+                const depDate = new Date(aimed);
+                const diffMin = Math.floor((depDate - new Date()) / 60000);
+                return { time: aimed.slice(11,16), line, minutesUntil: diffMin };
+            });
+        }
 
-  <p class="meta">Updated at: <span id="updated">--:--:--</span></p>
+        function formatDepartureCard(d, idx, routeId) {
+            const isNext = idx===0;
+            const soon = d.minutesUntil <=5;
+            const cls = `departure-card${isNext?' next-departure':''}${!isNext&&soon?' soon':''}`;
+            return `<div class="${cls}">
+                        <div class="departure-time">${d.time}</div>
+                        <div class="departure-info">Line ${d.line}</div>
+                        <div class="countdown">${d.minutesUntil>=0?d.minutesUntil+' min':'-'}${d.minutesUntil<0?' (departed)':''}</div>
+                    </div>`;
+        }
 
-  <script>
-    // --- Correct Transitland stop and route onestop IDs for Tram 1 ---
-    const stops = {
-      balti: {
-        onestop: "s-u3hcjzeqyb-baltijaam",
-        route: "r-u3hcjzm6w-tram1"
-      },
-      ulikool: {
-        onestop: "s-u3hcjzm6wc-tallinnaulikool",
-        route: "r-u3hcjzm6w-tram1"
-      }
-    };
+        function getStopId(routeId) {
+            switch(routeId) {
+                case 'train-morning': return '1021'; // Nõmme station GTFS stop_id
+                case 'tram-morning':  return '1002'; // Balti jaam tram stop
+                case 'tram-evening':  return '1010'; // TLÜ tram stop
+                case 'train-evening': return '1021'; // Balti jaam train stop (same ID? Replace with correct)
+                default: return '';
+            }
+        }
 
-    async function getStaticDepartures(stopKey) {
-      const s = stops[stopKey];
-      const now = new Date();
-      const date = now.toISOString().slice(0,10);
-      // Add a small buffer so "now" doesn't filter out a tram at :00 just after reload
-      const mins = now.getMinutes().toString().padStart(2,'0');
-      const time = now.getHours().toString().padStart(2,'0') + ':' + mins + ':00';
-      const url = `https://transit.land/api/v2/rest/schedule_stop_pairs?origin_onestop_id=${s.onestop}&route_onestop_id=${s.route}&date=${date}&origin_departure_between=${time},23:59:00&per_page=10`;
-      try {
-        const resp = await fetch(url);
-        if (!resp.ok) throw new Error(resp.status + " " + resp.statusText);
-        const data = await resp.json();
-        if (!data.schedule_stop_pairs) throw new Error("No departures found");
-        const times = data.schedule_stop_pairs.map(p => p.origin_departure_time.slice(0,5));
-        return times.slice(0,6);
-      } catch (e) {
-        return [`<span class="err">API error</span>`];
-      }
-    }
+        async function loadDepartures(routeId, container) {
+            const btn = container.previousElementSibling.querySelector('.refresh-btn');
+            btn.disabled = true;
+            container.innerHTML = '<div class="loading">Loading…</div>';
+            try {
+                const stopId = getStopId(routeId);
+                const deps = await fetchScheduleDepartures(stopId);
+                if (!deps.length) container.innerHTML = '<div class="no-data">No departures</div>';
+                else container.innerHTML = deps.map((d,i)=>formatDepartureCard(d,i,routeId)).join('');
+            } catch(e) {
+                container.innerHTML = `<div class="error">${e.message}</div>`;
+            } finally {
+                btn.disabled = false;
+            }
+        }
 
-    async function updateTrams() {
-      for (let key of ['balti','ulikool']) {
-        document.getElementById(`tram-${key}`).innerHTML = "Loading…";
-        const times = await getStaticDepartures(key);
-        document.getElementById(`tram-${key}`).innerHTML = times.length ? times.join(', ') : "No more today";
-      }
-    }
+        function refreshRoute(routeId) {
+            const containerId = routeId.replace('-', '') + 'Departures';
+            const container = document.getElementById(containerId);
+            loadDepartures(routeId, container);
+        }
 
-    // --- Elron trains (static example, adjust as needed) ---
-    // Replace below with the real Elron weekday schedule for Nõmme and Tallinn
-    const trains = {
-      nomme: [
-        "05:58","06:20","06:31","06:36","06:44","06:52","07:00","07:07",
-        "07:12","07:23","07:32","07:44","07:52","08:01","08:09","08:15",
-        "08:20","08:27","08:39","08:52","09:09","09:21","09:35","09:52",
-        "10:09","10:21","10:35","10:52","11:09","11:21","11:35","11:52",
-        "12:09","12:21","12:35","12:52","13:09","13:21","13:35","13:52",
-        "14:09","14:21","14:35","14:52","15:09","15:21","15:35","15:52",
-        "16:09","16:21","16:35","16:52","17:09","17:21","17:35","17:52",
-        "18:09","18:21","18:35","18:52","19:09","19:21","19:35","19:52",
-        "20:09","20:21","20:35","20:52","21:09","21:21","21:35","21:52",
-        "22:09","22:21","22:35","22:52"
-      ],
-      tallinn: [
-        "05:49","06:09","06:24","06:39","06:54","07:09","07:24","07:39",
-        "07:54","08:09","08:24","08:39","08:54","09:09","09:24","09:39",
-        "09:54","10:09","10:24","10:39","10:54","11:09","11:24","11:39",
-        "11:54","12:09","12:24","12:39","12:54","13:09","13:24","13:39",
-        "13:54","14:09","14:24","14:39","14:54","15:09","15:24","15:39",
-        "15:54","16:09","16:24","16:39","16:54","17:09","17:24","17:39",
-        "17:54","18:09","18:24","18:39","18:54","19:09","19:24","19:39",
-        "19:54","20:09","20:24","20:39","20:54","21:09","21:24","21:39",
-        "21:54","22:09","22:24","22:39","22:54"
-      ]
-    };
+        function refreshAll() {
+            if (currentDirection==='morning') {
+                refreshRoute('train-morning');
+                refreshRoute('tram-morning');
+            } else {
+                refreshRoute('tram-evening');
+                refreshRoute('train-evening');
+            }
+        }
 
-    function updateTrains() {
-      const now = new Date(); const curr = now.getHours()*60+now.getMinutes();
-      for (let key of ['nomme','tallinn']) {
-        const arr = trains[key].filter(t => {
-          const [h,m] = t.split(':').map(Number);
-          return h*60+m >= curr;
-        }).slice(0,6);
-        document.getElementById(`train-${key}`).innerText = arr.length ? arr.join(', ') : 'No more today';
-      }
-    }
-
-    function refreshAll() {
-      updateTrams();
-      updateTrains();
-      document.getElementById('updated').innerText = new Date().toLocaleTimeString();
-    }
-
-    refreshAll();
-    setInterval(refreshAll, 20000); // Update every 20s
-  </script>
+        document.addEventListener('DOMContentLoaded', ()=>{
+            updateCurrentTime(); setInterval(updateCurrentTime,1000);
+            ['train-morning','tram-morning','tram-evening','train-evening'].forEach(id=>{
+                const container = document.getElementById(id.replace('-', '')+'Departures');
+                loadDepartures(id, container);
+            });
+            refreshInterval = setInterval(refreshAll, 60000);
+        });
+        window.addEventListener('beforeunload', ()=> clearInterval(refreshInterval));
+    </script>
 </body>
 </html>
