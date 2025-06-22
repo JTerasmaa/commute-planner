@@ -6,12 +6,7 @@
     <title>🚆 SIRI-Based Nõmme ↔ TLÜ Transit</title>
     <style>
         * { margin: 0; padding: 0; box-sizing: border-box; }
-        body {
-            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-            min-height: 100vh;
-            color: #333;
-        }
+        body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); min-height: 100vh; color: #333; }
         .container { max-width: 1200px; margin: 0 auto; padding: 20px; }
         .header { text-align: center; margin-bottom: 30px; color: white; }
         .header h1 { font-size: 2.5rem; margin-bottom: 10px; text-shadow: 2px 2px 4px rgba(0,0,0,0.3); }
@@ -49,12 +44,7 @@
         .error { background: #ffebee; color: #c62828; padding: 15px; border-radius: 8px; margin: 10px 0; text-align: center; }
         .no-data { text-align: center; padding: 20px; color: #666; font-style: italic; }
         .api-info { background: rgba(255,255,255,0.1); padding: 15px; border-radius: 10px; margin-bottom: 20px; color: white; font-size: 0.9rem; text-align: center; }
-        @media (max-width: 768px) {
-            .header h1 { font-size: 2rem; }
-            .direction-toggle { flex-direction: column; align-items: center; }
-            .route-section { padding: 20px; }
-            .departures { grid-template-columns: 1fr; }
-        }
+        @media (max-width: 768px) { .header h1 { font-size: 2rem; } .direction-toggle { flex-direction: column; align-items: center; } .route-section { padding: 20px; } .departures { grid-template-columns: 1fr; } }
     </style>
 </head>
 <body>
@@ -91,4 +81,126 @@
                         <button class="refresh-btn" onclick="refreshRoute('tram-morning')">↻</button>
                     </div>
                     <div class="departures" id="tramMorningDepartures"><div class="loading">Loading…</div></div>
-                
+                </div>
+            </div>
+            <div id="eveningRoutes" class="route-group" style="display:none;">
+                <div class="route-section">
+                    <div class="route-header">
+                        <div class="route-icon tram-icon">1</div>
+                        <div class="route-title"><h3>TLÜ → Balti jaam</h3><div class="route-subtitle">Tram Line 1 departures</div></div>
+                        <button class="refresh-btn" onclick="refreshRoute('tram-evening')">↻</button>
+                    </div>
+                    <div class="departures" id="tramEveningDepartures"><div class="loading">Loading…</div></div>
+                </div>
+                <div class="route-section">
+                    <div class="route-header">
+                        <div class="route-icon train-icon">🚆</div>
+                        <div class="route-title"><h3>Balti jaam → Nõmme</h3><div class="route-subtitle">Elron train departures</div></div>
+                        <button class="refresh-btn" onclick="refreshRoute('train-evening')">↻</button>
+                    </div>
+                    <div class="departures" id="trainEveningDepartures"><div class="loading">Loading…</div></div>
+                </div>
+            </div>
+        </div>
+    </div>
+    <script>
+        let currentDirection = 'morning';
+        let refreshInterval;
+
+        function updateCurrentTime() {
+            const now = new Date();
+            document.getElementById('currentTime').textContent =
+                now.toLocaleDateString('et-EE', {weekday:'long', year:'numeric', month:'long', day:'numeric'}) + ' ' +
+                now.toLocaleTimeString('et-EE', {hour:'2-digit',minute:'2-digit',second:'2-digit'});
+        }
+
+        function setDirection(dir) {
+            currentDirection = dir;
+            document.getElementById('morningBtn').classList.toggle('active', dir==='morning');
+            document.getElementById('eveningBtn').classList.toggle('active', dir==='evening');
+            document.getElementById('morningRoutes').style.display = dir==='morning' ? 'block' : 'none';
+            document.getElementById('eveningRoutes').style.display = dir==='evening' ? 'block' : 'none';
+        }
+
+        async function fetchScheduleDepartures(stopId) {
+            const url = `https://transport.tallinn.ee/siri-stop-departures.php?stopid=${stopId}`;
+            const res = await fetch(url);
+            if (!res.ok) throw new Error('Feed fetch failed');
+            const xmlText = await res.text();
+            const xml = new DOMParser().parseFromString(xmlText, 'application/xml');
+            const visits = Array.from(xml.querySelectorAll('MonitoredStopVisit')).slice(0, 6);
+            return visits.map(v => {
+                const aimed = v.querySelector('AimedDepartureTime').textContent;
+                const line  = v.querySelector('LineRef').textContent;
+                const depDate = new Date(aimed);
+                const diffMin = Math.floor((depDate - new Date()) / 60000);
+                return { time: aimed.slice(11,16), line, minutesUntil: diffMin };
+            });
+        }
+
+        function formatDepartureCard(d, idx) {
+            const isNext = idx === 0;
+            const soon = d.minutesUntil <= 5;
+            let cls = 'departure-card';
+            if (isNext) cls += ' next-departure';
+            else if (soon) cls += ' soon';
+            return `<div class="${cls}">
+                        <div class="departure-time">${d.time}</div>
+                        <div class="departure-info">Line ${d.line}</div>
+                        <div class="countdown">${d.minutesUntil >= 0 ? d.minutesUntil + ' min' : '- (departed)'}</div>
+                    </div>`;
+        }
+
+        function getStopId(routeId) {
+            switch(routeId) {
+                case 'train-morning': return '1021';
+                case 'tram-morning':  return '10703-1';
+                case 'tram-evening':  return '21101-1';
+                case 'train-evening': return '1022';
+                default: return '';
+            }
+        }
+
+        async function loadDepartures(routeId, container) {
+            const btn = container.previousElementSibling.querySelector('.refresh-btn');
+            btn.disabled = true;
+            container.innerHTML = '<div class="loading">Loading…</div>';
+            try {
+                const stopId = getStopId(routeId);
+                const deps = await fetchScheduleDepartures(stopId);
+                if (!deps.length) container.innerHTML = '<div class="no-data">No departures</div>';
+                else container.innerHTML = deps.map((d,i) => formatDepartureCard(d,i)).join('');
+            } catch(e) {
+                container.innerHTML = `<div class="error">Error: ${e.message}</div>`;
+            } finally {
+                btn.disabled = false;
+            }
+        }
+
+        function refreshRoute(routeId) {
+            const container = document.getElementById(`${routeId.replace('-', '')}Departures`);
+            loadDepartures(routeId, container);
+        }
+
+        function refreshAll() {
+            if (currentDirection === 'morning') {
+                refreshRoute('train-morning');
+                refreshRoute('tram-morning');
+            } else {
+                refreshRoute('tram-evening');
+                refreshRoute('train-evening');
+            }
+        }
+
+        document.addEventListener('DOMContentLoaded', () => {
+            updateCurrentTime(); setInterval(updateCurrentTime, 1000);
+            ['train-morning','tram-morning','tram-evening','train-evening'].forEach(id => {
+                const container = document.getElementById(`${id.replace('-', '')}Departures`);
+                loadDepartures(id, container);
+            });
+            refreshInterval = setInterval(refreshAll, 60000);
+        });
+        window.addEventListener('beforeunload', () => clearInterval(refreshInterval));
+    </script>
+</body>
+</html>
