@@ -6,34 +6,41 @@
   <title>🚆 Sinna ja tagasi</title>
   <style>
     * { margin:0; padding:0; box-sizing:border-box; }
-    body {
-      font-family:-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-      background:linear-gradient(135deg,#667eea 0%,#764ba2 100%);
-      color:#333; min-height:100vh;
+    body { font-family:-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      background:linear-gradient(135deg,#667eea,#764ba2); color:#333; min-height:100vh;
     }
-    .container { max-width:500px; margin:0 auto; padding:5px; }
+    .container { max-width:600px; margin:0 auto; padding:20px; }
     .header { text-align:center; margin-bottom:20px; color:white; }
     .header h1 { font-size:2.5rem; text-shadow:2px 2px 4px rgba(0,0,0,0.3); }
-    .current-time { font-size:1.2rem; opacity:.9; margin-top:10px; }
+    .current-time { font-size:1.2rem; opacity:.9; }
     .direction-toggle { display:flex; justify-content:center; gap:10px; margin:20px 0; }
-    .toggle-btn { background:rgba(255,255,255,0.2); border:2px solid white; color:white; padding:12px 24px; border-radius:25px; cursor:pointer; font-weight:600; transition:background .3s; }
+    .toggle-btn { background:rgba(255,255,255,0.2); border:2px solid white; color:white;
+      padding:10px 20px; border-radius:25px; cursor:pointer; font-weight:600; transition:background .3s;
+    }
     .toggle-btn.active { background:white; color:#667eea; }
-    .toggle-btn:hover { background:rgba(255,255,255,0.3); }
-    .paired-section { background:white; border-radius:15px; padding:20px; box-shadow:0 10px 30px rgba(0,0,0,0.2); margin-bottom:20px; }
-    .paired-header { display:grid; grid-template-columns:1fr 1fr; align-items:center; margin-bottom:10px; }
-    .paired-header .col { display:flex; align-items:center; gap:10px; }
-    .route-icon { width:30px; height:30px; border-radius:50%; display:flex; align-items:center; justify-content:center; color:white; font-size:1rem; }
+    .paired-section { background:white; border-radius:12px; padding:20px;
+      box-shadow:0 4px 15px rgba(0,0,0,.2);
+    }
+    .paired-header { display:grid; grid-template-columns:1fr 1fr; align-items:center; margin-bottom:15px; }
+    .paired-header .col { display:flex; align-items:center; gap:8px; }
+    .route-icon { width:28px; height:28px; border-radius:50%; display:flex;
+      align-items:center; justify-content:center; color:white; font-size:1rem;
+    }
     .train-icon { background:#2196F3; }
-    .tram-icon { background:#FF9800; }
-    .paired-departures { display:grid; grid-template-columns:repeat(2,1fr); gap:8px; }
-    .paired-cell { display:flex; flex-direction:column; gap:5px; }
-    .departure-card { background:#f8f9fa; border-radius:8px; padding:8px; border-left:4px solid #667eea; }
+    .tram-icon  { background:#FF9800; }
+    .paired-departures { display:grid; grid-template-rows:auto; gap:12px; }
+    .paired-row { display:grid; grid-template-columns:1fr 1fr; gap:12px; }
+    .paired-cell { display:flex; flex-direction:column; gap:6px; }
+    .departure-card { background:#f8f9fa; border-radius:8px; padding:8px;
+      border-left:4px solid #667eea; display:flex; justify-content:space-between;
+      align-items:center;
+    }
     .departure-card.next-departure { border-left-color:#4CAF50; background:#e8f5e8; }
     .departure-card.soon { border-left-color:#FF9800; background:#fff3e0; }
-    .departure-card.highlight { background:#fffde7; border-left-color:#fdd835; }
+    .departure-card.highlight { border-left-color:#fdd835; background:#fffde7; }
     .departure-time { font-size:1rem; font-weight:bold; color:#2196F3; }
     .countdown { font-size:.8rem; font-weight:bold; color:#FF9800; }
-    .no-data { text-align:center; color:#666; font-style:italic; }
+    .no-data { text-align:center; color:#666; font-style:italic; padding:8px; }
   </style>
 </head>
 <body>
@@ -43,76 +50,123 @@
       <div id="currentTime" class="current-time"></div>
     </div>
     <div class="direction-toggle">
-      <button id="morningBtn" class="toggle-btn active" onclick="setDirection('morning')">🌅 Sinna</button>
-      <button id="eveningBtn" class="toggle-btn" onclick="setDirection('evening')">🌆 Tagasi</button>
+      <button id="morningBtn" class="toggle-btn active">🌅 Sinna</button>
+      <button id="eveningBtn" class="toggle-btn">🌆 Tagasi</button>
     </div>
-    <div id="pairedRoutes"></div>
+    <div class="paired-section" id="pairedSection">
+      <!-- dynamically injected -->
+    </div>
   </div>
-
   <script>
+    // utilities
+    const pad = n => n.toString().padStart(2, '0');
+    const isWeekend = () => [0,6].includes(new Date().getDay());
+    const getNowMin = () => { const d = new Date(); return d.getHours()*60 + d.getMinutes(); };
+
+    // schedule data
     const SCHEDULE_DATA = {
       tramSchedule: {
-        "Balti Jaam → Tallinna Ülikool": {
-          weekdays: {"5":["24","42"],"6":["00","15","30","43","53"],"7":["03","13","23","33","43","53"],"8":["02","11","20","29","38","47","56"],"9":["05","15","24","34","44","54"],"10":["04","14","24","34","44","54"],"11":["04","14","24","34","44","53"],"12":["02","11","20","29","38","47","56"],"13":["05","14","23","32","41","50","59"],"14":["08","17","26","35","44","53"],"15":["05","17","29","41","53"],"16":["05","17","29","41","53"],"17":["05","17","32","48"],"18":["04","22","39","57"],"19":["15","34","54"],"20":["08","18","29","41","53"],"21":["05","17","29","41","53"],"22":["08","17","26","35","44","53"],"23":["15","34","54"]},
-          weekends: {"5":["44"],"6":["04","24","42"],"7":["00","18","36","54"],"8":["09","21","33","45","57"],"9":["09","21","33","45","57"],"10":["09","21","33","45","56"],"11":["07","18","29","40","50"],"12":["00","10","20","30","40","50"],"13":["00","10","20","30","40","50"],"14":["00","10","20","30","40","50"],"15":["00","10","20","30","40","50"],"16":["00","10","20","30","40","50"],"17":["00","10","20","31","42","53"],"18":["04","15","27","38","49"],"19":["01","13","25","37","49"],"20":["01","13","25","37","49"],"21":["01","16","31","47"],"22":["03","21","39","57"],"23":["15","34","54"]}
+        "Balti Jaam → Tallinna Ülikool": { weekdays: {5:[24,42],6:[0,15,30,43,53],7:[3,13,23,33,43,53],8:[2,11,20,29,38,47,56],9:[5,15,24,34,44,54],10:[4,14,24,34,44,54],11:[4,14,24,34,44,53],12:[2,11,20,29,38,47,56],13:[5,14,23,32,41,50,59],14:[8,17,26,35,44,53],15:[5,17,29,41,53],16:[5,17,29,41,53],17:[5,17,32,48],18:[4,22,39,57],19:[15,34,54],20:[8,18,29,41,53],21:[5,17,29,41,53],22:[8,17,26,35,44,53],23:[15,34,54] },
+          weekends: {5:[44],6:[4,24,42],7:[0,18,36,54],8:[9,21,33,45,57],9:[9,21,33,45,57],10:[9,21,33,45,56],11:[7,18,29,40,50],12:[0,10,20,30,40,50],13:[0,10,20,30,40,50],14:[0,10,20,30,40,50],15:[0,10,20,30,40,50],16:[0,10,20,30,40,50],17:[0,10,20,31,42,53],18:[4,15,27,38,49],19:[1,13,25,37,49],20:[1,13,25,37,49],21:[1,16,31,47],22:[3,21,39,57],23:[15,34,54] }
         },
-        "Tallinna Ülikool → Balti Jaam": {
-          weekdays: {"5":["23","42"],"6":["00","18","33","48"],"7":["01","14","24","34","44","54"],"8":["04","14","23","32","41","50","59"],"9":["08","17","26","35","45","55"],"10":["05","15","25","35","45","55"],"11":["06","16","26","36","46","55"],"12":["05","14","23","32","41","50","59"],"13":["08","17","26","35","44","53"],"14":["02","11","20","29","38","47","56"],"15":["05","14","23","32","41","50","59"],"16":["08","17","26","35","44","53"],"17":["02","11","20","29","39","49","58"],"18":["08","18","29","39","51"],"19":["02","14","26","38","50"],"20":["02","14","26","38","51"],"21":["03","14","26","38","52"],"22":["08","25","42","59"],"23":["17","35","53"],"0":["13"]},
-          weekends: {"5":["43"],"6":["03","23","43"],"7":["01","19","37","56"],"8":["15","29","41","53"],"9":["06","18","30","42","54"],"10":["06","19","31","43","55"],"11":["06","17","28","39","50"],"12":["00","10","20","30","40","50"],"13":["00","10","20","30","40","50"],"14":["00","10","20","30","40","50"],"15":["00","10","20","30","40","50"],"16":["00","10","20","30","40","50"],"17":["00","10","20","31","41","51"],"18":["02","13","25","36","47","59"],"19":["11","23","35","47","59"],"20":["11","23","35","47","59"],"21":["09","21","37","52"],"22":["08","24","41","59"],"23":["17","35","53"],"0":["13"]}
+        "Tallinna Ülikool → Balti Jaam": { weekdays: {5:[23,42],6:[0,18,33,48],7:[1,14,24,34,44,54],8:[4,14,23,32,41,50,59],9:[8,17,26,35,45,55],10:[5,15,25,35,45,55],11:[6,16,26,36,46,55],12:[5,14,23,32,41,50,59],13:[8,17,26,35,44,53],14:[2,11,20,29,38,47,56],15:[5,14,23,32,41,50,59],16:[8,17,26,35,44,53],17:[2,11,20,29,39,49,58],18:[8,18,29,39,51],19:[2,14,26,38,50],20:[2,14,26,38,51],21:[3,14,26,38,52],22:[8,25,42,59],23:[17,35,53],0:[13] },
+          weekends: {5:[43],6:[3,23,43],7:[1,19,37,56],8:[15,29,41,53],9:[6,18,30,42,54],10:[6,19,31,43,55],11:[6,17,28,39,50],12:[0,10,20,30,40,50],13:[0,10,20,30,40,50],14:[0,10,20,30,40,50],15:[0,10,20,30,40,50],16:[0,10,20,30,40,50],17:[0,10,20,31,41,51],18:[2,13,25,36,47,59],19:[11,23,35,47,59],20:[11,23,35,47,59],21:[9,21,37,52],22:[8,24,41,59],23:[17,35,53],0:[13] }
         }
       },
       trainSchedule: {
-        "Nõmme → Tallinn": [
-          "05:01","05:21","05:42","06:12","06:41","07:02","07:21","07:32","07:41","07:52","08:01","08:12","08:21","08:32","08:41","09:02","09:21","09:41","10:02","10:21","10:41","11:02","11:21","11:41","12:01","12:21","12:41","13:02","13:21","13:41","14:02","14:21","14:41","15:01","15:11","15:21","15:41","15:51","16:02","16:21","16:31","16:41","17:01","17:21","17:32","17:41","17:52","18:02","18:21","18:41","19:01","19:21","19:41","20:02","20:21","20:41","21:11","21:41","22:11","22:41","23:12"
-        ],
-        "Tallinn → Nõmme": [
-          "05:45","06:15","06:35","06:45","07:05","07:25","07:36","07:45","08:05","08:15","08:25","08:35","08:45","08:55","09:05","09:25","09:45","10:05","10:25","10:45","11:05","11:25","11:45","12:05","12:25","12:45","13:05","13:25","13:45","14:05","14:25","14:45","15:05","15:25","15:45","16:05","16:16","16:25","16:36","16:45","16:56","17:05","17:16","17:25","17:45","18:05","18:15","18:25","18:45","19:05","19:25","19:45","19:55","20:15","20:25","20:45","21:15","21:45","22:15","22:45","23:15","23:45"
-        ]
+        "Nõmme → Tallinn": ["05:01","05:21","05:42","06:12","06:41","07:02","07:21","07:32","07:41","07:52","08:01","08:12","08:21","08:32","08:41","09:02","09:21","09:41","10:02","10:21","10:41","11:02","11:21","11:41","12:01","12:21","12:41","13:02","13:21","13:41","14:02","14:21","14:41","15:01","15:11","15:21","15:41","15:51","16:02","16:21","16:31","16:41","17:01","17:21","17:32","17:41","17:52","18:02","18:21","18:41","19:01","19:21","19:41","20:02","20:21","20:41","21:11","21:41","22:11","22:41","23:12"],
+        "Tallinn → Nõmme": ["05:45","06:15","06:35","06:45","07:05","07:25","07:36","07:45","08:05","08:15","08:25","08:35","08:45","08:55","09:05","09:25","09:45","10:05","10:25","10:45","11:05","11:25","11:45","12:05","12:25","12:45","13:05","13:25","13:45","14:05","14:25","14:45","15:05","15:25","15:45","16:05","16:16","16:25","16:36","16:45","16:56","17:05","17:16","17:25","17:45","18:05","18:15","18:25","18:45","19:05","19:25","19:45","19:55","20:15","20:25","20:45","21:15","21:45","22:15","22:45","23:15","23:45"]
       }
     };
     const highlightTimes = {
-      'train-morning': ['05:01','05:42','06:12','07:12','07:21','07:32','07:52','08:12','08:32','15:51','16:31','17:32','17:52'],
-      'train-evening': ['06:15','06:35','07:36','08:15','08:35','08:55','16:16','16:36','16:56','17:16','18:15']
+      'train-morning':['05:01','05:42','06:12','07:12','07:21','07:32','07:52','08:12','08:32','15:51','16:31','17:32','17:52'],
+      'train-evening':['06:15','06:35','07:36','08:15','08:35','08:55','16:16','16:36','16:56','17:16','18:15']
     };
-    let currentDirection = 'morning';
-    function pad(n) { return n.toString().padStart(2,'0'); }
-    function isWeekend() { const d=new Date().getDay(); return d===0||d===6; }
-    function getStaticTimes(id) {
+
+    let currentDirection='morning';
+
+    function getStaticTimes(id){
       if(id.startsWith('tram')){
-        const key=id==='tram-morning'?'Balti Jaam → Tallinna Ülikool':'Tallinna Ülikool → Balti Jaam';
+        const key=id==='tram-morning'
+          ? 'Balti Jaam → Tallinna Ülikool'
+          : 'Tallinna Ülikool → Balti Jaam';
         const block=SCHEDULE_DATA.tramSchedule[key];
         const period=isWeekend()?block.weekends:block.weekdays;
-        return Object.entries(period).flatMap(([h,mins])=>mins.map(m=>`${pad(h)}:${pad(m)}`)).sort();
+        return Object.entries(period)
+          .flatMap(([h,mins])=>mins.map(m=>`${pad(h)}:${pad(m)}`))
+          .sort();
       } else {
-        const key=id==='train-morning'?'Nõmme → Tallinn':'Tallinn → Nõmme';
+        const key=id==='train-morning'
+          ? 'Nõmme → Tallinn'
+          : 'Tallinn → Nõmme';
         return SCHEDULE_DATA.trainSchedule[key];
       }
     }
+
     function generateUpcoming(id){
-      const times=getStaticTimes(id);const now=new Date();const nowMin=now.getHours()*60+now.getMinutes();
-      return times.map(t=>{const [h,m]=t.split(':').map(Number);let mins=h*60+m;if(mins<nowMin)mins+=1440;return{time:t,diff:mins-nowMin}}).sort((a,b)=>a.diff-b.diff);
+      const times=getStaticTimes(id);
+      const nowMin=getNowMin();
+      return times.map(t=>{
+        const [h,m]=t.split(':').map(Number);
+        let mins=h*60+m;
+        if(mins<nowMin)mins+=1440;
+        return {time:t,diff:mins-nowMin};
+      }).sort((a,b)=>a.diff-b.diff);
     }
-    function pairDepartures(pId,sId,minGap){
-      const prim=generateUpcoming(pId),sec=generateUpcoming(sId),rows=[];
-      for(let i=0;i<prim.length;i++){const p=prim[i];const nextP=prim[i+1]||{diff:p.diff+1440};const secRows=sec.filter(s=>s.diff>=p.diff+minGap&&s.diff<nextP.diff);rows.push({p,sec:secRows});}
-      return rows;
+
+    function pairDepartures(pId,sId,offset){
+      const prim=generateUpcoming(pId);
+      const sec=generateUpcoming(sId);
+      return prim.map((p,i)=>{
+        const next=prim[i+1]?prim[i+1].diff:Infinity;
+        const start=p.diff+offset;
+        const end=next+offset;
+        const list=sec.filter(s=>s.diff>=start&&s.diff<end);
+        return {primary:p,secondary:list};
+      });
     }
-    function formatCell(item,routeId){
-      if(!item||!item.time) return '<div class="no-data">—</div>';
-      const cls=['departure-card'];if(item.diff<=5)cls.push('soon');if(!isWeekend()&&highlightTimes[routeId]?.includes(item.time))cls.push('highlight');
-      const first=generateUpcoming(routeId)[0];if(item.time===first.time&&item.diff===first.diff)cls.push('next-departure');
-      return `<div class="${cls.join(' ')}"><div class="departure-time">${item.time}</div><div class="countdown">${item.diff} min</div></div>`;
+
+    function formatCard(item,routeId){
+      if(!item) return '<div class="no-data">—</div>';
+      const cls=['departure-card'];
+      if(item.diff<=5) cls.push('soon');
+      if(highlightTimes[routeId]?.includes(item.time)) cls.push('highlight');
+      const first=generateUpcoming(routeId)[0];
+      if(item.time===first.time) cls.push('next-departure');
+      return `<div class="${cls.join(' ')}"><span class="departure-time">${item.time}</span><span class="countdown">${item.diff} min</span></div>`;
     }
-    function renderPaired(){
-      const container=document.getElementById('pairedRoutes');let html='';
-      if(currentDirection==='morning'){const rows=pairDepartures('train-morning','tram-morning',12);
-        html+=`<div class="paired-section"><div class="paired-header"><div class="col"><div class="route-icon train-icon">🚆</div><h3>Rong</h3></div><div class="col"><div class="route-icon tram-icon">1</div><h3>Tramm</h3></div></div><div class="paired-departures">`;
-        rows.forEach(({p,sec})=>{html+=`<div class="paired-cell">${formatCell(p,'train-morning')}</div><div class="paired-cell">${sec.length?sec.map(s=>formatCell(s,'tram-morning')).join(''):'<div class="no-data">—</div>'}</div>`;});html+='</div></div>';}else{const rows=pairDepartures('tram-evening','train-evening',12);
-        html+=`<div class="paired-section"><div class="paired-header"><div class="col"><div class="route-icon tram-icon">1</div><h3>Tramm</h3></div><div class="col"><div class="route-icon train-icon">🚆</div><h3>Rong</h3></div></div><div class="paired-departures">`;
-        rows.forEach(({p,sec})=>{html+=`<div class="paired-cell">${formatCell(p,'tram-evening')}</div><div class="paired-cell">${sec.length?sec.map(s=>formatCell(s,'train-evening')).join(''):'<div class="no-data">—</div>'}</div>`;});html+='</div></div>';}container.innerHTML=html;
+
+    function render(){
+      const container=document.getElementById('pairedSection');
+      const isMorning=currentDirection==='morning';
+      const pId=isMorning?'train-morning':'tram-evening';
+      const sId=isMorning?'tram-morning':'train-evening';
+      const iconP=isMorning?'<div class="route-icon train-icon">🚆</div>':'<div class="route-icon tram-icon">1</div>';
+      const iconS=isMorning?'<div class="route-icon tram-icon">1</div>':'<div class="route-icon train-icon">🚆</div>';
+      const titleP=isMorning?'Rong':'Tramm';
+      const titleS=isMorning?'Tramm':'Rong';
+      const rows=pairDepartures(pId,sId,12);
+
+      let html=`<div class="paired-header"><div class="col">${iconP}<h3>${titleP}</h3></div><div class="col">${iconS}<h3>${titleS}</h3></div></div><div class="paired-departures">`;
+      rows.forEach(r=>{
+        html+='<div class="paired-row">';
+        html+=`<div class="paired-cell">${formatCard(r.primary,pId)}</div>`;
+        if(r.secondary.length)
+          html+=`<div class="paired-cell">${r.secondary.map(s=>formatCard(s,sId)).join('')}</div>`;
+        else
+          html+='<div class="paired-cell"><div class="no-data">—</div></div>';
+        html+='</div>';
+      });
+      html+='</div>';
+      container.innerHTML=html;
     }
-    function setDirection(dir){currentDirection=dir;document.getElementById('morningBtn').classList.toggle('active',dir==='morning');document.getElementById('eveningBtn').classList.toggle('active',dir==='evening');renderPaired();}
-    document.addEventListener('DOMContentLoaded',()=>{setInterval(()=>{document.getElementById('currentTime').textContent=new Date().toLocaleTimeString('et-EE',{hour:'2-digit',minute:'2-digit',second:'2-digit'});},1000);renderPaired();});
+
+    document.getElementById('morningBtn').onclick=()=>{ currentDirection='morning'; render(); };
+    document.getElementById('eveningBtn').onclick=()=>{ currentDirection='evening'; render(); };
+    setInterval(()=>{
+      document.getElementById('currentTime').textContent = new Date().toLocaleTimeString('et-EE',{hour:'2-digit',minute:'2-digit',second:'2-digit'});
+    },1000);
+    render();
   </script>
 </body>
 </html>
