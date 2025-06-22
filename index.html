@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>🚆 Static Schedule Nõmme ↔ TLÜ Transit</title>
+  <title>🚆 Nõmme ↔ TLÜ ↔ Nõmme</title>
   <style>
     * { margin:0; padding:0; box-sizing:border-box; }
     body {
@@ -55,8 +55,8 @@
       <div class="current-time" id="currentTime"></div>
     </div>
     <div class="direction-toggle">
-      <button class="toggle-btn active" id="morningBtn" onclick="setDirection('morning')">🌅 Morning</button>
-      <button class="toggle-btn" id="eveningBtn" onclick="setDirection('evening')">🌆 Evening</button>
+      <button class="toggle-btn active" id="morningBtn" onclick="setDirection('morning')">🌅 Sinna</button>
+      <button class="toggle-btn" id="eveningBtn" onclick="setDirection('evening')">🌆 Tagasi</button>
     </div>
 
     <div id="pairedRoutes">
@@ -201,8 +201,8 @@
         const pairs = pairDepartures('train-morning','tram-morning',14);
         html += `<div class="paired-section">
           <div class="paired-header">
-            <div class="col"><div class="route-icon train-icon">🚆</div><h3>Train</h3></div>
-            <div class="col"><div class="route-icon tram-icon">1</div><h3>Tram</h3></div>
+            <div class="col"><div class="route-icon train-icon">🚆</div><h3>Rong</h3></div>
+            <div class="col"><div class="route-icon tram-icon">1</div><h3>Tramm</h3></div>
           </div>
           <div class="paired-departures">
             ${pairs.map(({p,s}) => `
@@ -215,8 +215,8 @@
         const pairs = pairDepartures('tram-evening','train-evening',14);
         html += `<div class="paired-section">
           <div class="paired-header">
-            <div class="col"><div class="route-icon tram-icon">1</div><h3>Tram</h3></div>
-            <div class="col"><div class="route-icon train-icon">🚆</div><h3>Train</h3></div>
+            <div class="col"><div class="route-icon tram-icon">1</div><h3>Tramm</h3></div>
+            <div class="col"><div class="route-icon train-icon">🚆</div><h3>Rong</h3></div>
           </div>
           <div class="paired-departures">
             ${pairs.map(({p,s}) => `
