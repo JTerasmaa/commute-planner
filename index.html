@@ -5,76 +5,39 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>🚆 Static Schedule Nõmme ↔ TLÜ Transit</title>
   <style>
-    * { margin: 0; padding: 0; box-sizing: border-box; }
+    * { margin:0; padding:0; box-sizing:border-box; }
     body {
-      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-      min-height: 100vh;
-      color: #333;
+      font-family:-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      background:linear-gradient(135deg,#667eea 0%,#764ba2 100%);
+      color:#333; min-height:100vh;
     }
-    .container { max-width: 1200px; margin: 0 auto; padding: 20px; }
-    .header { text-align: center; margin-bottom: 30px; color: white; }
-    .header h1 { font-size: 2.5rem; margin-bottom: 10px; text-shadow: 2px 2px 4px rgba(0,0,0,0.3); }
-    .current-time { font-size: 1.2rem; opacity: 0.9; margin-bottom: 20px; }
-    .direction-toggle { display: flex; justify-content: center; gap: 10px; margin-bottom: 30px; }
+    .container { max-width:1200px; margin:0 auto; padding:20px; }
+    .header { text-align:center; margin-bottom:20px; color:white; }
+    .header h1 { font-size:2.5rem; text-shadow:2px 2px 4px rgba(0,0,0,0.3); }
+    .current-time { font-size:1.2rem; opacity:.9; margin-top:10px; }
+    .direction-toggle { display:flex; justify-content:center; gap:10px; margin:20px 0; }
     .toggle-btn {
-      background: rgba(255,255,255,0.2);
-      border: 2px solid white;
-      color: white;
-      padding: 12px 24px;
-      border-radius: 25px;
-      cursor: pointer;
-      transition: all 0.3s ease;
-      font-weight: 600;
+      background:rgba(255,255,255,0.2); border:2px solid white; color:white;
+      padding:12px 24px; border-radius:25px; cursor:pointer; font-weight:600;
+      transition:background .3s;
     }
-    .toggle-btn.active { background: white; color: #667eea; }
-    .toggle-btn:hover { background: rgba(255,255,255,0.3); }
-    .route-section {
-      background: white;
-      border-radius: 15px;
-      padding: 25px;
-      margin-bottom: 25px;
-      box-shadow: 0 10px 30px rgba(0,0,0,0.2);
-      transition: transform 0.3s ease;
-    }
-    .route-section:hover { transform: translateY(-2px); }
-    .route-header { display: flex; align-items: center; margin-bottom: 20px; padding-bottom: 15px; border-bottom: 2px solid #f0f0f0; }
-    .route-icon {
-      width: 40px; height: 40px; border-radius: 50%;
-      display: flex; align-items: center; justify-content: center;
-      margin-right: 15px; font-size: 1.2rem; color: white;
-    }
-    .train-icon { background: #2196F3; }
-    .tram-icon  { background: #FF9800; }
-    .route-title { flex: 1; }
-    .route-title h3 { font-size: 1.4rem; margin-bottom: 5px; }
-    .refresh-btn {
-      background: #4CAF50; color: white; border: none;
-      border-radius: 8px; padding: 8px 16px;
-      cursor: pointer; font-size: 0.9rem;
-      transition: background 0.3s ease;
-    }
-    .refresh-btn:hover { background: #45a049; }
-    .refresh-btn:disabled { background: #ccc; cursor: not-allowed; }
-    .departures {
-      display: grid;
-      grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
-      gap: 15px;
-    }
-    .departure-card {
-      background: #f8f9fa; border-radius: 10px;
-      padding: 15px; border-left: 4px solid #667eea;
-      transition: all 0.3s ease; position: relative;
-    }
-    .departure-card.next-departure { border-left-color: #4CAF50; background: #e8f5e8; }
-    .departure-card.soon { border-left-color: #FF9800; background: #fff3e0; }
-    .departure-time { font-size: 1.3rem; font-weight: bold; color: #2196F3; margin-bottom: 5px; }
-    .countdown { font-size: 0.8rem; color: #FF9800; font-weight: bold; }
-    .loading { text-align: center; padding: 20px; color: #666; }
-    .no-data { text-align: center; padding: 20px; color: #666; font-style: italic; }
-    @media (max-width: 768px) {
-      .departures { grid-template-columns: 1fr; }
-    }
+    .toggle-btn.active { background:white; color:#667eea; }
+    .toggle-btn:hover { background:rgba(255,255,255,0.3); }
+    .paired-section { background:white; border-radius:15px; padding:20px; box-shadow:0 10px 30px rgba(0,0,0,0.2); }
+    .paired-header { display:grid; grid-template-columns:1fr 1fr; align-items:center; margin-bottom:10px; }
+    .paired-header .col { display:flex; align-items:center; gap:10px; }
+    .route-icon { width:30px; height:30px; border-radius:50%; display:flex; align-items:center; justify-content:center; color:white; font-size:1rem; }
+    .train-icon { background:#2196F3; }
+    .tram-icon  { background:#FF9800; }
+    .paired-departures { display:grid; grid-template-columns:1fr 1fr; gap:10px; }
+    .paired-cell { display:flex; flex-direction:column; gap:5px; }
+    .departure-card { background:#f8f9fa; border-radius:8px; padding:8px; border-left:4px solid #667eea; }
+    .departure-card.next-departure { border-left-color:#4CAF50; background:#e8f5e8; }
+    .departure-card.soon { border-left-color:#FF9800; background:#fff3e0; }
+    .departure-time { font-size:1rem; font-weight:bold; color:#2196F3; }
+    .countdown { font-size:.8rem; font-weight:bold; color:#FF9800; }
+    .no-data { text-align:center; color:#666; font-style:italic; }
+    @media(max-width:768px){ .paired-departures{grid-template-columns:1fr;} }
   </style>
 </head>
 <body>
@@ -88,58 +51,61 @@
       <button class="toggle-btn" id="eveningBtn" onclick="setDirection('evening')">🌆 Evening</button>
     </div>
 
-    <div id="routeContainer">
-      <!-- Morning -->
-      <div id="morningRoutes">
-        <div class="route-section">
-          <div class="route-header">
-            <div class="route-icon train-icon">🚆</div>
-            <div class="route-title"><h3>Nõmme → Tallinn</h3></div>
-            <button class="refresh-btn" onclick="renderRoute('train-morning','train-morning-deps')">↻</button>
-          </div>
-          <div class="departures" id="train-morning-deps"></div>
-        </div>
-        <div class="route-section">
-          <div class="route-header">
-            <div class="route-icon tram-icon">1</div>
-            <div class="route-title"><h3>Balti Jaam → Tallinna Ülikool</h3></div>
-            <button class="refresh-btn" onclick="renderRoute('tram-morning','tram-morning-deps')">↻</button>
-          </div>
-          <div class="departures" id="tram-morning-deps"></div>
-        </div>
-      </div>
-      <!-- Evening -->
-      <div id="eveningRoutes" style="display:none;">
-        <div class="route-section">
-          <div class="route-header">
-            <div class="route-icon tram-icon">1</div>
-            <div class="route-title"><h3>Tallinna Ülikool → Balti Jaam</h3></div>
-            <button class="refresh-btn" onclick="renderRoute('tram-evening','tram-evening-deps')">↻</button>
-          </div>
-          <div class="departures" id="tram-evening-deps"></div>
-        </div>
-        <div class="route-section">
-          <div class="route-header">
-            <div class="route-icon train-icon">🚆</div>
-            <div class="route-title"><h3>Tallinn → Nõmme</h3></div>
-            <button class="refresh-btn" onclick="renderRoute('train-evening','train-evening-deps')">↻</button>
-          </div>
-          <div class="departures" id="train-evening-deps"></div>
-        </div>
-      </div>
+    <div id="pairedRoutes">
+      <!-- paired section will be injected here -->
     </div>
   </div>
 
   <script>
+    // Static schedule data
     const SCHEDULE_DATA = {
       "tramSchedule": {
         "Balti Jaam → Tallinna Ülikool": {
-          "weekdays": {"5":["24","42"],"6":["00","15","30","43","53"],"7":["03","13","23","33","43","53"],"8":["02","11","20","29","38","47","56"],"9":["05","15","24","34","44","54"],"10":["04","14","24","34","44","54"],"11":["04","14","24","34","44","53"],"12":["02","11","20","29","38","47","56"],"13":["05","14","23","32","41","50","59"],"14":["08","17","26","35","44","53"],"15":["05","17","29","41","53"],"16":["05","17","29","41","53"],"17":["05","17","32","48"],"18":["04","22","39","57"],"19":["15","34","54"],"20":["08","18","29","41","53"],"21":["05","17","29","41","53"],"22":["08","17","26","35","44","53"],"23":["15","34","54"]},
-          "weekends": {"5":["44"],"6":["04","24","42"],"7":["00","18","36","54"],"8":["09","21","33","45","57"],"9":["09","21","33","45","57"],"10":["09","21","33","45","56"],"11":["07","18","29","40","50"],"12":["00","10","20","30","40","50"],"13":["00","10","20","30","40","50"],"14":["00","10","20","30","40","50"],"15":["00","10","20","30","40","50"],"16":["00","10","20","30","40","50"],"17":["00","10","20","31","42","53"],"18":["04","15","27","38","49"],"19":["01","13","25","37","49"],"20":["01","13","25","37","49"],"21":["01","16","31","47"],"22":["03","21","39","57"],"23":["15","34","54"]}
+          "weekdays": {
+            "5": ["24","42"], "6": ["00","15","30","43","53"], "7": ["03","13","23","33","43","53"],
+            "8": ["02","11","20","29","38","47","56"], "9": ["05","15","24","34","44","54"],
+            "10": ["04","14","24","34","44","54"], "11": ["04","14","24","34","44","53"],
+            "12": ["02","11","20","29","38","47","56"], "13": ["05","14","23","32","41","50","59"],
+            "14": ["08","17","26","35","44","53"], "15": ["05","17","29","41","53"],
+            "16": ["05","17","29","41","53"], "17": ["05","17","32","48"],
+            "18": ["04","22","39","57"], "19": ["15","34","54"], "20": ["08","18","29","41","53"],
+            "21": ["05","17","29","41","53"], "22": ["08","17","26","35","44","53"], "23": ["15","34","54"]
+          },
+          "weekends": {
+            "5": ["44"], "6": ["04","24","42"], "7": ["00","18","36","54"],
+            "8": ["09","21","33","45","57"], "9": ["09","21","33","45","57"],
+            "10": ["09","21","33","45","56"], "11": ["07","18","29","40","50"],
+            "12": ["00","10","20","30","40","50"], "13": ["00","10","20","30","40","50"],
+            "14": ["00","10","20","30","40","50"], "15": ["00","10","20","30","40","50"],
+            "16": ["00","10","20","30","40","50"], "17": ["00","10","20","31","42","53"],
+            "18": ["04","15","27","38","49"], "19": ["01","13","25","37","49"],
+            "20": ["01","13","25","37","49"], "21": ["01","16","31","47"],
+            "22": ["03","21","39","57"], "23": ["15","34","54"]
+          }
         },
         "Tallinna Ülikool → Balti Jaam": {
-          "weekdays": {"5":["23","42"],"6":["00","18","33","48"],"7":["01","14","24","34","44","54"],"8":["04","14","23","32","41","50","59"],"9":["08","17","26","35","45","55"],"10":["05","15","25","35","45","55"],"11":["06","16","26","36","46","55"],"12":["05","14","23","32","41","50","59"],"13":["08","17","26","35","44","53"],"14":["02","11","20","29","38","47","56"],"15":["05","14","23","32","41","50","59"],"16":["08","17","26","35","44","53"],"17":["02","11","20","29","39","49","58"],"18":["08","18","29","39","51"],"19":["02","14","26","38","50"],"20":["02","14","26","38","51"],"21":["03","14","26","38","52"],"22":["08","25","42","59"],"23":["17","35","53"],"0":["13"]},
-          "weekends": {"5":["43"],"6":["03","23","43"],"7":["01","19","37","56"],"8":["15","29","41","53"],"9":["06","18","30","42","54"],"10":["06","19","31","43","55"],"11":["06","17","28","39","50"],"12":["00","10","20","30","40","50"],"13":["00","10","20","30","40","50"],"14":["00","10","20","30","40","50"],"15":["00","10","20","30","40","50"],"16":["00","10","20","30","40","50"],"17":["00","10","20","31","41","51"],"18":["02","13","25","36","47","59"],"19":["11","23","35","47","59"],"20":["11","23","35","47","59"],"21":["09","21","37","52"],"22":["08","24","41","59"],"23":["17","35","53"],"0":["13"]}
+          "weekdays": {
+            "5": ["23","42"], "6": ["00","18","33","48"], "7": ["01","14","24","34","44","54"],
+            "8": ["04","14","23","32","41","50","59"], "9": ["08","17","26","35","45","55"],
+            "10": ["05","15","25","35","45","55"], "11": ["06","16","26","36","46","55"],
+            "12": ["05","14","23","32","41","50","59"], "13": ["08","17","26","35","44","53"],
+            "14": ["02","11","20","29","38","47","56"], "15": ["05","14","23","32","41","50","59"],
+            "16": ["08","17","26","35","44","53"], "17": ["02","11","20","29","39","49","58"],
+            "18": ["08","18","29","39","51"], "19": ["02","14","26","38","50"],
+            "20": ["02","14","26","38","51"], "21": ["03","14","26","38","52"],
+            "22": ["08","25","42","59"], "23": ["17","35","53"], "0": ["13"]
+          },
+          "weekends": {
+            "5": ["43"], "6": ["03","23","43"], "7": ["01","19","37","56"],
+            "8": ["15","29","41","53"], "9": ["06","18","30","42","54"],
+            "10": ["06","19","31","43","55"], "11": ["06","17","28","39","50"],
+            "12": ["00","10","20","30","40","50"], "13": ["00","10","20","30","40","50"],
+            "14": ["00","10","20","30","40","50"], "15": ["00","10","20","30","40","50"],
+            "16": ["00","10","20","30","40","50"], "17": ["00","10","20","31","41","51"],
+            "18": ["02","13","25","36","47","59"], "19": ["11","23","35","47","59"],
+            "20": ["11","23","35","47","59"], "21": ["09","21","37","52"],
+            "22": ["08","24","41","59"], "23": ["17","35","53"], "0": ["13"]
+          }
         }
       },
       "trainSchedule": {
@@ -164,22 +130,6 @@
 
     let currentDirection = 'morning';
 
-    function updateCurrentTime() {
-      const now = new Date();
-      document.getElementById('currentTime').textContent =
-        now.toLocaleDateString('et-EE', { weekday:'long', year:'numeric', month:'long', day:'numeric' }) +
-        ' ' + now.toLocaleTimeString('et-EE', { hour:'2-digit', minute:'2-digit', second:'2-digit' });
-    }
-
-    function setDirection(dir) {
-      currentDirection = dir;
-      document.getElementById('morningBtn').classList.toggle('active', dir==='morning');
-      document.getElementById('eveningBtn').classList.toggle('active', dir==='evening');
-      document.getElementById('morningRoutes').style.display = dir==='morning'?'block':'none';
-      document.getElementById('eveningRoutes').style.display = dir==='evening'?'block':'none';
-      renderAll();
-    }
-
     function pad(n) { return n.toString().padStart(2,'0'); }
     function isWeekend() { const d=new Date().getDay(); return d===0||d===6; }
 
@@ -201,57 +151,89 @@
       }
     }
 
-    function generateUpcoming(id, count=6) {
+    function generateUpcoming(id) {
       const times = getStaticTimes(id);
       const now = new Date();
       const nowMin = now.getHours()*60 + now.getMinutes();
-      const upcoming = [];
-      times.forEach(t => {
+      return times.map(t => {
         const [h,m] = t.split(':').map(Number);
-        const mins = h*60 + m;
-        if (mins >= nowMin) upcoming.push({ time: t, minutes: mins - nowMin });
-      });
-      if (upcoming.length < count) {
-        times.slice(0, count - upcoming.length).forEach(t => {
-          const [h,m] = t.split(':').map(Number);
-          const mins = h*60 + m + 24*60;
-          upcoming.push({ time: t, minutes: mins - nowMin });
-        });
-      }
-      return upcoming.slice(0, count);
+        let mins = h*60 + m;
+        let day = 0;
+        if (mins < nowMin) { mins += 1440; day = 1; }
+        return { time: t, diff: mins - nowMin, day };
+      }).sort((a,b) => a.diff - b.diff);
     }
 
-    function formatCard(dep, idx) {
-      const cls = ['departure-card'];
-      if (idx === 0) cls.push('next-departure'); else if (dep.minutes <= 5) cls.push('soon');
+    function pairDepartures(primaryId, secondaryId, minGap) {
+      const prim = generateUpcoming(primaryId);
+      const sec = generateUpcoming(secondaryId);
+      const pairs = [];
+      let j = 0;
+      for (const p of prim) {
+        while (j < sec.length && sec[j].diff < p.diff + minGap) j++;
+        const s = sec[j] || { time: '—', diff: '–' };
+        pairs.push({ p, s });
+      }
+      return pairs.slice(0,6);
+    }
+
+    function formatCell(item) {
+      if (item.time === '—') return '<div class="no-data">—</div>';
       return `
-        <div class="${cls.join(' ')}">
-          <div class="departure-time">${dep.time}</div>
-          <div class="countdown">${dep.minutes} min</div>
+        <div class="departure-card">
+          <div class="departure-time">${item.time}</div>
+          <div class="countdown">${item.diff} min</div>
         </div>`;
     }
 
-    function renderRoute(id, container) {
-      const deps = generateUpcoming(id);
-      const cont = document.getElementById(container);
-      cont.innerHTML = deps.length
-        ? deps.map((d,i)=>formatCard(d,i)).join('')
-        : '<div class="no-data">No departures</div>';
+    function renderPaired() {
+      const container = document.getElementById('pairedRoutes');
+      let html = '';
+      if (currentDirection === 'morning') {
+        const pairs = pairDepartures('train-morning','tram-morning',14);
+        html += `<div class="paired-section">
+          <div class="paired-header">
+            <div class="col"><div class="route-icon train-icon">🚆</div><h3>Train</h3></div>
+            <div class="col"><div class="route-icon tram-icon">1</div><h3>Tram</h3></div>
+          </div>
+          <div class="paired-departures">
+            ${pairs.map(({p,s}) => `
+              <div class="paired-cell">${formatCell(p)}</div>
+              <div class="paired-cell">${formatCell(s)}</div>
+            `).join('')}
+          </div>
+        </div>`;
+      } else {
+        const pairs = pairDepartures('tram-evening','train-evening',14);
+        html += `<div class="paired-section">
+          <div class="paired-header">
+            <div class="col"><div class="route-icon tram-icon">1</div><h3>Tram</h3></div>
+            <div class="col"><div class="route-icon train-icon">🚆</div><h3>Train</h3></div>
+          </div>
+          <div class="paired-departures">
+            ${pairs.map(({p,s}) => `
+              <div class="paired-cell">${formatCell(p)}</div>
+              <div class="paired-cell">${formatCell(s)}</div>
+            `).join('')}
+          </div>
+        </div>`;
+      }
+      container.innerHTML = html;
     }
 
-    function renderAll() {
-      if (currentDirection === 'morning') {
-        renderRoute('train-morning','train-morning-deps');
-        renderRoute('tram-morning','tram-morning-deps');
-      } else {
-        renderRoute('tram-evening','tram-evening-deps');
-        renderRoute('train-evening','train-evening-deps');
-      }
+    function setDirection(dir) {
+      currentDirection = dir;
+      document.getElementById('morningBtn').classList.toggle('active', dir === 'morning');
+      document.getElementById('eveningBtn').classList.toggle('active', dir === 'evening');
+      renderPaired();
     }
 
     document.addEventListener('DOMContentLoaded', () => {
-      updateCurrentTime(); setInterval(updateCurrentTime, 1000);
-      renderAll();
+      setInterval(() => {
+        document.getElementById('currentTime').textContent =
+          new Date().toLocaleTimeString('et-EE', { hour:'2-digit', minute:'2-digit', second:'2-digit' });
+      }, 1000);
+      renderPaired();
     });
   </script>
 </body>
