@@ -105,9 +105,9 @@
     }
     function renderPaired(){
       const container=document.getElementById('pairedRoutes');let html='';
-      if(currentDirection==='morning'){const rows=pairDepartures('train-morning','tram-morning',14);
+      if(currentDirection==='morning'){const rows=pairDepartures('train-morning','tram-morning',12);
         html+=`<div class="paired-section"><div class="paired-header"><div class="col"><div class="route-icon train-icon">🚆</div><h3>Rong</h3></div><div class="col"><div class="route-icon tram-icon">1</div><h3>Tramm</h3></div></div><div class="paired-departures">`;
-        rows.forEach(({p,sec})=>{html+=`<div class="paired-cell">${formatCell(p,'train-morning')}</div><div class="paired-cell">${sec.length?sec.map(s=>formatCell(s,'tram-morning')).join(''):'<div class="no-data">—</div>'}</div>`;});html+='</div></div>';}else{const rows=pairDepartures('tram-evening','train-evening',14);
+        rows.forEach(({p,sec})=>{html+=`<div class="paired-cell">${formatCell(p,'train-morning')}</div><div class="paired-cell">${sec.length?sec.map(s=>formatCell(s,'tram-morning')).join(''):'<div class="no-data">—</div>'}</div>`;});html+='</div></div>';}else{const rows=pairDepartures('tram-evening','train-evening',12);
         html+=`<div class="paired-section"><div class="paired-header"><div class="col"><div class="route-icon tram-icon">1</div><h3>Tramm</h3></div><div class="col"><div class="route-icon train-icon">🚆</div><h3>Rong</h3></div></div><div class="paired-departures">`;
         rows.forEach(({p,sec})=>{html+=`<div class="paired-cell">${formatCell(p,'tram-evening')}</div><div class="paired-cell">${sec.length?sec.map(s=>formatCell(s,'train-evening')).join(''):'<div class="no-data">—</div>'}</div>`;});html+='</div></div>';}container.innerHTML=html;
     }
