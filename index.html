@@ -29,7 +29,11 @@
     .route-icon { width:30px; height:30px; border-radius:50%; display:flex; align-items:center; justify-content:center; color:white; font-size:1rem; }
     .train-icon { background:#2196F3; }
     .tram-icon  { background:#FF9800; }
-    .paired-departures { display:grid; grid-template-columns:1fr 1fr; gap:10px; }
+    .paired-departures {
+      display: grid;
+      grid-template-columns: repeat(2, 1fr);
+      gap: 8px;
+    }
     .paired-cell { display:flex; flex-direction:column; gap:5px; }
     .departure-card { background:#f8f9fa; border-radius:8px; padding:8px; border-left:4px solid #667eea; }
     .departure-card.next-departure { border-left-color:#4CAF50; background:#e8f5e8; }
