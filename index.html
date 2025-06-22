@@ -136,18 +136,6 @@
       }
     };
 
-        // Highlight specific weekday-only trains
-    const highlightTimes = {
-      'train-morning': [
-        '05:01','05:42','06:12','07:12','07:21','07:32','07:52','08:12','08:32',
-        '15:51','16:31','17:32','17:52'
-      ],
-      'train-evening': [
-        '06:15','06:35','07:36','08:15','08:35','08:55',
-        '16:16','16:36','16:56','17:16','18:15'
-      ]
-    };
-
     let currentDirection = 'morning';
 
     function pad(n) { return n.toString().padStart(2,'0'); }
