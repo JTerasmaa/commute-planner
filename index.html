@@ -59,14 +59,18 @@
       <button class="toggle-btn" id="eveningBtn" onclick="setDirection('evening')">🌆 Tagasi</button>
     </div>
 
-    <div id="pairedRoutes"><!-- paired section injected here --></div>
+    <div id="pairedRoutes"></div>
   </div>
 
   <script>
     // Static schedule data
-    const SCHEDULE_DATA = { /* existing tramSchedule and trainSchedule */ };
-    // Highlight specific weekday-only trains
-    const highlight = {
+    const SCHEDULE_DATA = {
+      "tramSchedule": { /* existing tramSchedule JSON here */ },
+      "trainSchedule": { /* existing trainSchedule JSON here */ }
+    };
+
+    // Highlight only on weekdays for specific trains
+    const highlightTimes = {
       'train-morning': [
         '05:01','05:42','06:12','07:12','07:21','07:32','07:52','08:12','08:32',
         '15:51','16:31','17:32','17:52'
@@ -80,21 +84,22 @@
     let currentDirection = 'morning';
 
     function pad(n) { return n.toString().padStart(2,'0'); }
-    function isWeekend() { const d=new Date().getDay(); return d===0||d===6; }
-    function isWeekday() { return !isWeekend(); }
+    function isWeekend() { const d = new Date().getDay(); return d === 0 || d === 6; }
 
     function getStaticTimes(id) {
       if (id.startsWith('tram')) {
-        const key = id==='tram-morning'
+        const key = id === 'tram-morning'
           ? 'Balti Jaam → Tallinna Ülikool'
           : 'Tallinna Ülikool → Balti Jaam';
         const block = SCHEDULE_DATA.tramSchedule[key];
         const period = isWeekend() ? block.weekends : block.weekdays;
         const times = [];
-        Object.entries(period).forEach(([hr, mins]) => mins.forEach(m => times.push(`${pad(hr)}:${pad(m)}`)));
+        Object.entries(period).forEach(([hr, mins]) => {
+          mins.forEach(m => times.push(`${pad(hr)}:${pad(m)}`));
+        });
         return times.sort();
       } else {
-        const key = id==='train-morning'
+        const key = id === 'train-morning'
           ? 'Nõmme → Tallinn'
           : 'Tallinn → Nõmme';
         return SCHEDULE_DATA.trainSchedule[key];
@@ -104,13 +109,13 @@
     function generateUpcoming(id) {
       const times = getStaticTimes(id);
       const now = new Date();
-      const nowMin = now.getHours()*60 + now.getMinutes();
+      const nowMin = now.getHours() * 60 + now.getMinutes();
       return times.map(t => {
-        const [h,m] = t.split(':').map(Number);
-        let mins = h*60 + m;
+        const [h, m] = t.split(':').map(Number);
+        let mins = h * 60 + m;
         if (mins < nowMin) mins += 1440;
         return { time: t, diff: mins - nowMin };
-      }).sort((a,b) => a.diff - b.diff);
+      }).sort((a, b) => a.diff - b.diff);
     }
 
     function pairDepartures(primaryId, secondaryId, minGap) {
@@ -123,53 +128,37 @@
         const s = sec[j] || { time: '—', diff: '–' };
         pairs.push({ p, s });
       }
-      return pairs.slice(0,6);
+      return pairs.slice(0, 6);
     }
 
     function formatCell(item, routeId) {
       if (item.time === '—') return '<div class="no-data">—</div>';
       const cls = ['departure-card'];
       if (item.diff <= 5) cls.push('soon');
-      if (routeId.startsWith('train') && isWeekday() && highlight[routeId].includes(item.time)) cls.push('highlight');
-      if (item === generateUpcoming(routeId)[0]) cls.push('next-departure');
-      return `
-        <div class="${cls.join(' ')}">
-          <div class="departure-time">${item.time}</div>
-          <div class="countdown">${item.diff} min</div>
-        </div>`;
+      // Highlight specific trains on weekdays
+      if (!isWeekend() && highlightTimes[routeId]?.includes(item.time)) cls.push('highlight');
+      const first = generateUpcoming(routeId)[0];
+      if (item.time === first.time && item.diff === first.diff) cls.push('next-departure');
+      return `<div class="${cls.join(' ')}"><div class="departure-time">${item.time}</div><div class="countdown">${item.diff} min</div></div>`;
     }
 
     function renderPaired() {
       const container = document.getElementById('pairedRoutes');
       let html = '';
       if (currentDirection === 'morning') {
-        const pairs = pairDepartures('train-morning','tram-morning',14);
-        html += `<div class="paired-section">
-          <div class="paired-header">
-            <div class="col"><div class="route-icon train-icon">🚆</div><h3>Rong</h3></div>
-            <div class="col"><div class="route-icon tram-icon">1</div><h3>Tramm</h3></div>
-          </div>
-          <div class="paired-departures">
-            ${pairs.map(({p,s}) => `
-              <div class="paired-cell">${formatCell(p,'train-morning')}</div>
-              <div class="paired-cell">${formatCell(s,'tram-morning')}</div>
-            `).join('')}
-          </div>
-        </div>`;
+        const pairs = pairDepartures('train-morning', 'tram-morning', 14);
+        html += `<div class="paired-section"><div class="paired-header"><div class="col"><div class="route-icon train-icon">🚆</div><h3>Rong</h3></div><div class="col"><div class="route-icon tram-icon">1</div><h3>Tramm</h3></div></div><div class="paired-departures">`;
+        pairs.forEach(({ p, s }) => {
+          html += `<div class="paired-cell">${formatCell(p, 'train-morning')}</div><div class="paired-cell">${formatCell(s, 'tram-morning')}</div>`;
+        });
+        html += `</div></div>`;
       } else {
-        const pairs = pairDepartures('tram-evening','train-evening',14);
-        html += `<div class="paired-section">
-          <div class="paired-header">
-            <div class="col"><div class="route-icon tram-icon">1</div><h3>Tramm</h3></div>
-            <div class="col"><div class="route-icon train-icon">🚆</div><h3>Rong</h3></div>
-          </div>
-          <div class="paired-departures">
-            ${pairs.map(({p,s}) => `
-              <div class="paired-cell">${formatCell(p,'tram-evening')}</div>
-              <div class="paired-cell">${formatCell(s,'train-evening')}</div>
-            `).join('')}
-          </div>
-        </div>`;
+        const pairs = pairDepartures('tram-evening', 'train-evening', 14);
+        html += `<div class="paired-section"><div class="paired-header"><div class="col"><div class="route-icon tram-icon">1</div><h3>Tramm</h3></div><div class="col"><div class="route-icon train-icon">🚆</div><h3>Rong</h3></div></div><div class="paired-departures">`;
+        pairs.forEach(({ p, s }) => {
+          html += `<div class="paired-cell">${formatCell(p, 'tram-evening')}</div><div class="paired-cell">${formatCell(s, 'train-evening')}</div>`;
+        });
+        html += `</div></div>`;
       }
       container.innerHTML = html;
     }
@@ -183,8 +172,7 @@
 
     document.addEventListener('DOMContentLoaded', () => {
       setInterval(() => {
-        document.getElementById('currentTime').textContent =
-          new Date().toLocaleTimeString('et-EE', { hour:'2-digit', minute:'2-digit', second:'2-digit' });
+        document.getElementById('currentTime').textContent = new Date().toLocaleTimeString('et-EE', { hour:'2-digit', minute:'2-digit', second:'2-digit' });
       }, 1000);
       renderPaired();
     });
