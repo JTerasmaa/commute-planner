@@ -1,6 +1,6 @@
 <!DOCTYPE html>
 <html lang="et">
-<head>
+<head>f
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>🚆 Sinna ja tagasi</title>
@@ -12,10 +12,10 @@
       color:#333; min-height:100vh;
     }
     .container {
-      max-width: 500px;
-      margin: 0 auto;
-      padding: 5px;
-    }
+    max-width: 500px;
+    margin: 0 auto;
+    padding: 5px;
+}
     .header { text-align:center; margin-bottom:20px; color:white; }
     .header h1 { font-size:2.5rem; text-shadow:2px 2px 4px rgba(0,0,0,0.3); }
     .current-time { font-size:1.2rem; opacity:.9; margin-top:10px; }
@@ -42,10 +42,10 @@
     .departure-card { background:#f8f9fa; border-radius:8px; padding:8px; border-left:4px solid #667eea; }
     .departure-card.next-departure { border-left-color:#4CAF50; background:#e8f5e8; }
     .departure-card.soon { border-left-color:#FF9800; background:#fff3e0; }
-    .departure-card.highlight { background:#fffde7; border-left-color:#fdd835; }
     .departure-time { font-size:1rem; font-weight:bold; color:#2196F3; }
     .countdown { font-size:.8rem; font-weight:bold; color:#FF9800; }
     .no-data { text-align:center; color:#666; font-style:italic; }
+     }
   </style>
 </head>
 <body>
@@ -59,7 +59,9 @@
       <button class="toggle-btn" id="eveningBtn" onclick="setDirection('evening')">🌆 Tagasi</button>
     </div>
 
-    <div id="pairedRoutes"></div>
+    <div id="pairedRoutes">
+      <!-- paired section will be injected here -->
+    </div>
   </div>
 
   <script>
@@ -67,12 +69,51 @@
     const SCHEDULE_DATA = {
       "tramSchedule": {
         "Balti Jaam → Tallinna Ülikool": {
-          "weekdays": {"5":["24","42"],"6":["00","15","30","43","53"],"7":["03","13","23","33","43","53"],"8":["02","11","20","29","38","47","56"],"9":["05","15","24","34","44","54"],"10":["04","14","24","34","44","54"],"11":["04","14","24","34","44","53"],"12":["02","11","20","29","38","47","56"],"13":["05","14","23","32","41","50","59"],"14":["08","17","26","35","44","53"],"15":["05","17","29","41","53"],"16":["05","17","29","41","53"],"17":["05","17","32","48"],"18":["04","22","39","57"],"19":["15","34","54"],"20":["08","18","29","41","53"],"21":["05","17","29","41","53"],"22":["08","17","26","35","44","53"],"23":["15","34","54"]},
-          "weekends": {"5":["44"],"6":["04","24","42"],"7":["00","18","36","54"],"8":["09","21","33","45","57"],"9":["09","21","33","45","57"],"10":["09","21","33","45","56"],"11":["07","18","29","40","50"],"12":["00","10","20","30","40","50"],"13":["00","10","20","30","40","50"],"14":["00","10","20","30","40","50"],"15":["00","10","20","30","40","50"],"16":["00","10","20","30","40","50"],"17":["00","10","20","31","42","53"],"18":["04","15","27","38","49"],"19":["01","13","25","37","49"],"20":["01","13","25","37","49"],"21":["01","16","31","47"],"22":["03","21","39","57"],"23":["15","34","54"]}
+          "weekdays": {
+            "5": ["24","42"], "6": ["00","15","30","43","53"], "7": ["03","13","23","33","43","53"],
+            "8": ["02","11","20","29","38","47","56"], "9": ["05","15","24","34","44","54"],
+            "10": ["04","14","24","34","44","54"], "11": ["04","14","24","34","44","53"],
+            "12": ["02","11","20","29","38","47","56"], "13": ["05","14","23","32","41","50","59"],
+            "14": ["08","17","26","35","44","53"], "15": ["05","17","29","41","53"],
+            "16": ["05","17","29","41","53"], "17": ["05","17","32","48"],
+            "18": ["04","22","39","57"], "19": ["15","34","54"], "20": ["08","18","29","41","53"],
+            "21": ["05","17","29","41","53"], "22": ["08","17","26","35","44","53"], "23": ["15","34","54"]
+          },
+          "weekends": {
+            "5": ["44"], "6": ["04","24","42"], "7": ["00","18","36","54"],
+            "8": ["09","21","33","45","57"], "9": ["09","21","33","45","57"],
+            "10": ["09","21","33","45","56"], "11": ["07","18","29","40","50"],
+            "12": ["00","10","20","30","40","50"], "13": ["00","10","20","30","40","50"],
+            "14": ["00","10","20","30","40","50"], "15": ["00","10","20","30","40","50"],
+            "16": ["00","10","20","30","40","50"], "17": ["00","10","20","31","42","53"],
+            "18": ["04","15","27","38","49"], "19": ["01","13","25","37","49"],
+            "20": ["01","13","25","37","49"], "21": ["01","16","31","47"],
+            "22": ["03","21","39","57"], "23": ["15","34","54"]
+          }
         },
         "Tallinna Ülikool → Balti Jaam": {
-          "weekdays": {"5":["23","42"],"6":["00","18","33","48"],"7":["01","14","24","34","44","54"],"8":["04","14","23","32","41","50","59"],"9":["08","17","26","35","45","55"],"10":["05","15","25","35","45","55"],"11":["06","16","26","36","46","55"],"12":["05","14","23","32","41","50","59"],"13":["08","17","26","35","44","53"],"14":["02","11","20","29","38","47","56"],"15":["05","14","23","32","41","50","59"],"16":["08","17","26","35","44","53"],"17":["02","11","20","29","39","49","58"],"18":["08","18","29","39","51"],"19":["02","14","26","38","50"],"20":["02","14","26","38","51"],"21":["03","14","26","38","52"],"22":["08","25","42","59"],"23":["17","35","53"],"0":["13"]},
-          "weekends": {"5":["43"],"6":["03","23","43"],"7":["01","19","37","56"],"8":["15","29","41","53"],"9":["06","18","30","42","54"],"10":["06","19","31","43","55"],"11":["06","17","28","39","50"],"12":["00","10","20","30","40","50"],"13":["00","10","20","30","40","50"],"14":["00","10","20","30","40","50"],"15":["00","10","20","30","40","50"],"16":["00","10","20","30","40","50"],"17":["00","10","20","31","41","51"],"18":["02","13","25","36","47","59"],"19":["11","23","35","47","59"],"20":["11","23","35","47","59"],"21":["09","21","37","52"],"22":["08","24","41","59"],"23":["17","35","53"],"0":["13"]}
+          "weekdays": {
+            "5": ["23","42"], "6": ["00","18","33","48"], "7": ["01","14","24","34","44","54"],
+            "8": ["04","14","23","32","41","50","59"], "9": ["08","17","26","35","45","55"],
+            "10": ["05","15","25","35","45","55"], "11": ["06","16","26","36","46","55"],
+            "12": ["05","14","23","32","41","50","59"], "13": ["08","17","26","35","44","53"],
+            "14": ["02","11","20","29","38","47","56"], "15": ["05","14","23","32","41","50","59"],
+            "16": ["08","17","26","35","44","53"], "17": ["02","11","20","29","39","49","58"],
+            "18": ["08","18","29","39","51"], "19": ["02","14","26","38","50"],
+            "20": ["02","14","26","38","51"], "21": ["03","14","26","38","52"],
+            "22": ["08","25","42","59"], "23": ["17","35","53"], "0": ["13"]
+          },
+          "weekends": {
+            "5": ["43"], "6": ["03","23","43"], "7": ["01","19","37","56"],
+            "8": ["15","29","41","53"], "9": ["06","18","30","42","54"],
+            "10": ["06","19","31","43","55"], "11": ["06","17","28","39","50"],
+            "12": ["00","10","20","30","40","50"], "13": ["00","10","20","30","40","50"],
+            "14": ["00","10","20","30","40","50"], "15": ["00","10","20","30","40","50"],
+            "16": ["00","10","20","30","40","50"], "17": ["00","10","20","31","41","51"],
+            "18": ["02","13","25","36","47","59"], "19": ["11","23","35","47","59"],
+            "20": ["11","23","35","47","59"], "21": ["09","21","37","52"],
+            "22": ["08","24","41","59"], "23": ["17","35","53"], "0": ["13"]
+          }
         }
       },
       "trainSchedule": {
@@ -95,7 +136,7 @@
       }
     };
 
-    // Highlight specific weekday-only trains
+        // Highlight specific weekday-only trains
     const highlightTimes = {
       'train-morning': [
         '05:01','05:42','06:12','07:12','07:21','07:32','07:52','08:12','08:32',
@@ -134,28 +175,86 @@
       const times = getStaticTimes(id);
       const now = new Date();
       const nowMin = now.getHours()*60 + now.getMinutes();
-      return times.map(t => {const[h,m]=t.split(':').map(Number);letmins=h*60+m;if(mins<nowMin)mins+=1440;return{time:t,diff:mins-nowMin};}).sort((a,b)=>a.diff-b.diff);
+      return times.map(t => {
+        const [h,m] = t.split(':').map(Number);
+        let mins = h*60 + m;
+        let day = 0;
+        if (mins < nowMin) { mins += 1440; day = 1; }
+        return { time: t, diff: mins - nowMin, day };
+      }).sort((a,b) => a.diff - b.diff);
     }
 
-    function pairDepartures(pId,sId,minGap) {
-      const prim=generateUpcoming(pId),sec=generateUpcoming(sId),pairs=[],j=0;for(const p of prim){while(j<sec.length&&sec[j].diff<p.diff+minGap)j++;const s=sec[j]||{time:'—',diff:'–'};pairs.push({p,s});}return pairs.slice(0,6);
+    function pairDepartures(primaryId, secondaryId, minGap) {
+      const prim = generateUpcoming(primaryId);
+      const sec = generateUpcoming(secondaryId);
+      const pairs = [];
+      let j = 0;
+      for (const p of prim) {
+        while (j < sec.length && sec[j].diff < p.diff + minGap) j++;
+        const s = sec[j] || { time: '—', diff: '–' };
+        pairs.push({ p, s });
+      }
+      return pairs.slice(0,6);
     }
 
-    function formatCell(item,routeId) {
-      if(item.time==='—')return'<div class="no-data">—</div>';
-      const cls=['departure-card'];if(item.diff<=5)cls.push('soon');if(!isWeekend()&&highlightTimes[routeId]?.includes(item.time))cls.push('highlight');const first=generateUpcoming(routeId)[0];if(item.time===first.time&&item.diff===first.diff)cls.push('next-departure');return`<div class="${cls.join(' ')}"><div class="departure-time">${item.time}</div><div class="countdown">${item.diff} min</div></div>`;
+    function formatCell(item) {
+      if (item.time === '—') return '<div class="no-data">—</div>';
+      return `
+        <div class="departure-card">
+          <div class="departure-time">${item.time}</div>
+          <div class="countdown">${item.diff} min</div>
+        </div>`;
     }
 
     function renderPaired() {
-      const container=document.getElementById('pairedRoutes');let html='';
-      if(currentDirection==='morning'){const pairs=pairDepartures('train-morning','tram-morning',14);html+=`<div class="paired-section"><div class="paired-header"><div class="col"><div class="route-icon train-icon">🚆</div><h3>Rong</h3></div><div class="col"><div class="route-icon tram-icon">1</div><h3>Tramm</h3></div></div><div class="paired-departures">`;pairs.forEach(({p,s})=>html+=`<div class="paired-cell">${formatCell(p,'train-morning')}</div><div class="paired-cell">${formatCell(s,'tram-morning')}</div>`);html+=`</div></div>`;}else{const pairs=pairDepartures('tram-evening','train-evening',14);html+=`<div class="paired-section"><div class="paired-header"><div class="col"><div class="route-icon tram-icon">1</div><h3>Tramm</h3></div><div class="col"><div class="route-icon train-icon">🚆</div><h3>Rong</h3></div></div><div class="paired-departures">`;pairs.forEach(({p,s})=>html+=`<div class="paired-cell">${formatCell(p,'tram-evening')}</div><div class="paired-cell">${formatCell(s,'train-evening')}</div>`);html+=`</div></div>`;}container.innerHTML=html;
+      const container = document.getElementById('pairedRoutes');
+      let html = '';
+      if (currentDirection === 'morning') {
+        const pairs = pairDepartures('train-morning','tram-morning',14);
+        html += `<div class="paired-section">
+          <div class="paired-header">
+            <div class="col"><div class="route-icon train-icon">🚆</div><h3>Rong</h3></div>
+            <div class="col"><div class="route-icon tram-icon">1</div><h3>Tramm</h3></div>
+          </div>
+          <div class="paired-departures">
+            ${pairs.map(({p,s}) => `
+              <div class="paired-cell">${formatCell(p)}</div>
+              <div class="paired-cell">${formatCell(s)}</div>
+            `).join('')}
+          </div>
+        </div>`;
+      } else {
+        const pairs = pairDepartures('tram-evening','train-evening',14);
+        html += `<div class="paired-section">
+          <div class="paired-header">
+            <div class="col"><div class="route-icon tram-icon">1</div><h3>Tramm</h3></div>
+            <div class="col"><div class="route-icon train-icon">🚆</div><h3>Rong</h3></div>
+          </div>
+          <div class="paired-departures">
+            ${pairs.map(({p,s}) => `
+              <div class="paired-cell">${formatCell(p)}</div>
+              <div class="paired-cell">${formatCell(s)}</div>
+            `).join('')}
+          </div>
+        </div>`;
+      }
+      container.innerHTML = html;
     }
 
     function setDirection(dir) {
-      currentDirection=dir;document.getElementById('morningBtn').classList.toggle('active',dir==='morning');document.getElementById('eveningBtn').classList.toggle('active',dir==='evening');renderPaired();
+      currentDirection = dir;
+      document.getElementById('morningBtn').classList.toggle('active', dir === 'morning');
+      document.getElementById('eveningBtn').classList.toggle('active', dir === 'evening');
+      renderPaired();
     }
 
-    document.addEventListener('DOMContentLoaded',()=>{setInterval(()=>document.getElementById('currentTime').textContent=new Date().toLocaleTimeString('et-EE',{hour:'2-digit',minute:'2-digit',second:'2-digit'}),1000);renderPaired();});
+    document.addEventListener('DOMContentLoaded', () => {
+      setInterval(() => {
+        document.getElementById('currentTime').textContent =
+          new Date().toLocaleTimeString('et-EE', { hour:'2-digit', minute:'2-digit', second:'2-digit' });
+      }, 1000);
+      renderPaired();
+    });
   </script>
 </body>
 </html>
